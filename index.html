@@ -1,0 +1,2269 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mineral-Trainer – Karteikarten-App für Minerale</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          colors: {
+            slate: {
+              850: '#172033',
+              950: '#0b1120',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* Grundlegende Typografie und sanftes Scrollen */
+    html {
+      scroll-behavior: smooth;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    /* 3D-Karteikarten-Container & Flip-Animation */
+    .flashcard-scene {
+      perspective: 1400px;
+    }
+
+    .flashcard-inner {
+      position: relative;
+      width: 100%;
+      transform-style: preserve-3d;
+      transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1), min-height 0.35s ease;
+    }
+
+    .flashcard-inner.is-flipped {
+      transform: rotateY(180deg);
+    }
+
+    .flashcard-face {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    .flashcard-back {
+      transform: rotateY(180deg);
+    }
+
+    /* Dezentes kristallines Hintergrundmuster im Header */
+    .mineral-header-pattern {
+      background-color: #0f172a;
+      background-image:
+        radial-gradient(at 15% 20%, rgba(245, 158, 11, 0.14) 0px, transparent 50%),
+        radial-gradient(at 85% 10%, rgba(16, 185, 129, 0.10) 0px, transparent 45%),
+        radial-gradient(at 50% 100%, rgba(56, 189, 248, 0.08) 0px, transparent 55%);
+    }
+
+    /* Feine Animation für Toast-Nachrichten */
+    @keyframes slideUpFade {
+      from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .toast-enter {
+      animation: slideUpFade 0.25s ease-out forwards;
+    }
+
+    /* Drag-Over-Zustand für Foto-Upload */
+    .dropzone-active {
+      border-color: #d97706 !important;
+      background-color: #fffbeb !important;
+    }
+  </style>
+</head>
+<body class="bg-stone-100 text-slate-800 min-h-screen flex flex-col antialiased selection:bg-amber-200 selection:text-slate-900">
+
+  <!-- ==================== KOPFZEILE & NAVIGATION ==================== -->
+  <header class="mineral-header-pattern text-white shadow-lg sticky top-0 z-30 border-b border-slate-800">
+    <div class="max-w-5xl mx-auto px-4 py-3.5 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <!-- Markenlogo & Titel -->
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-md shadow-amber-950/40 shrink-0">
+            <!-- Kristall-Icon SVG -->
+            <svg class="w-6 h-6 text-slate-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 19 7 19 17 12 22 5 17 5 7 12 2" fill="rgba(255,255,255,0.25)" />
+              <line x1="12" y1="2" x2="12" y2="22" />
+              <polyline points="5 7 12 11 19 7" />
+              <polyline points="5 17 12 13 19 17" />
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white leading-tight">Mineral-Trainer</h1>
+            <p class="text-xs text-slate-300 hidden sm:block">Karteikarten &amp; Sammlung für Geowissenschaften</p>
+          </div>
+        </div>
+
+        <!-- Kompakte Kartenanzahl auf Mobilgeräten -->
+        <span id="header-total-badge-mobile" class="sm:hidden text-xs font-medium bg-slate-800 text-amber-300 border border-slate-700 px-2.5 py-1 rounded-full">
+          0 Minerale
+        </span>
+      </div>
+
+      <!-- Haupt-Tabs -->
+      <nav aria-label="Hauptnavigation" class="grid grid-cols-2 sm:flex bg-slate-900/90 p-1 rounded-xl border border-slate-700/80 gap-1">
+        <button
+          id="tab-btn-study"
+          type="button"
+          onclick="switchTab('study')"
+          class="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 bg-amber-500 text-slate-950 shadow-sm"
+        >
+          <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <rect x="3" y="4" width="18" height="14" rx="2" />
+            <path d="M7 20h10" />
+          </svg>
+          <span>Lernmodus</span>
+        </button>
+
+        <button
+          id="tab-btn-collection"
+          type="button"
+          onclick="switchTab('collection')"
+          class="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 text-slate-300 hover:text-white hover:bg-slate-800"
+        >
+          <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          <span>Sammlung &amp; Neue Karte</span>
+          <span id="nav-count-badge" class="ml-0.5 text-xs px-1.5 py-0.5 rounded-md bg-slate-700 text-slate-200">3</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ==================== HAUPTBEREICH ==================== -->
+  <main class="flex-1 max-w-5xl w-full mx-auto px-4 py-6 sm:py-8">
+
+    <!-- ================================================================
+         ANSICHT 1: LERNMODUS (KARTEIKARTEN)
+         ================================================================ -->
+    <section id="view-study" class="space-y-5">
+
+      <!-- Steuerungsleiste oben: Filter, Fortschritt & Mischen -->
+      <div class="bg-white rounded-2xl shadow-sm border border-stone-200 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <!-- Filter-Buttons -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            id="filter-all-btn"
+            type="button"
+            onclick="setStudyFilter('all')"
+            class="px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors bg-slate-900 text-white shadow-sm"
+          >
+            Alle Karten (<span id="count-all">0</span>)
+          </button>
+          <button
+            id="filter-repeat-btn"
+            type="button"
+            onclick="setStudyFilter('repeat')"
+            class="px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors bg-stone-100 text-slate-700 hover:bg-stone-200"
+          >
+            Nur Wiederholen (<span id="count-repeat">0</span>)
+          </button>
+        </div>
+
+        <!-- Fortschritt & Mischen -->
+        <div class="flex flex-wrap items-center justify-between md:justify-end gap-3 sm:gap-4">
+          <div class="flex items-center gap-3 flex-1 sm:flex-initial min-w-[170px]">
+            <div class="text-xs sm:text-sm font-medium text-slate-600 whitespace-nowrap">
+              <span id="study-progress-text" class="font-bold text-slate-900">Karte 1 von 3</span>
+              <span class="text-slate-400 mx-1">•</span>
+              <span class="text-emerald-700 font-semibold"><span id="count-known">0</span> Sicher</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onclick="shuffleStudyDeck()"
+            title="Kartenstapel zufällig mischen"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold bg-stone-100 hover:bg-amber-100 text-slate-700 hover:text-amber-900 border border-stone-200 transition-colors"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="16 3 21 3 21 8" />
+              <line x1="4" y1="20" x2="21" y2="3" />
+              <polyline points="21 16 21 21 16 21" />
+              <line x1="15" y1="15" x2="21" y2="21" />
+              <line x1="4" y1="4" x2="9" y2="9" />
+            </svg>
+            <span>Mischen</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Visueller Fortschrittsbalken -->
+      <div class="w-full bg-stone-200 h-2 rounded-full overflow-hidden">
+        <div id="study-progress-bar" class="bg-gradient-to-r from-amber-500 to-emerald-500 h-full rounded-full transition-all duration-300" style="width: 33%"></div>
+      </div>
+
+      <!-- Karteikarten-Bühne (wird ausgeblendet, wenn Filter leer ist) -->
+      <div id="study-card-stage" class="space-y-5">
+
+        <!-- 3D Flip Karteikarte -->
+        <div class="flashcard-scene w-full max-w-3xl mx-auto">
+          <div
+            id="flashcard-inner"
+            class="flashcard-inner cursor-pointer select-none"
+            role="button"
+            tabindex="0"
+            aria-label="Karteikarte umdrehen"
+            onclick="flipCard()"
+          >
+            <!-- VORDERSEITE: Nur Foto & Status-Hinweis (kein Name!) -->
+            <div
+              id="flashcard-front"
+              class="flashcard-face bg-white rounded-3xl shadow-md hover:shadow-lg transition-shadow border border-stone-200/90 p-5 sm:p-8 flex flex-col justify-between min-h-[380px] sm:min-h-[460px]"
+            >
+              <!-- Obere Statuszeile -->
+              <div class="flex items-center justify-between gap-2 pb-3 border-b border-stone-100">
+                <span class="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                  Vorderseite • Mineral bestimmen
+                </span>
+                <span id="front-status-pill" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
+                  Wiederholen
+                </span>
+              </div>
+
+              <!-- Zentriertes großes Foto -->
+              <div class="my-4 sm:my-6 flex-1 flex items-center justify-center bg-slate-900 rounded-2xl p-3 sm:p-5 overflow-hidden border border-slate-800 shadow-inner">
+                <img
+                  id="front-image"
+                  src=""
+                  alt="Mineral-Foto zur Bestimmung"
+                  class="max-h-[300px] sm:max-h-[380px] w-auto max-w-full object-contain rounded-xl transition-transform duration-300"
+                />
+              </div>
+
+              <!-- Untere Bedienhilfe -->
+              <div class="flex items-center justify-center gap-2 text-xs sm:text-sm text-slate-500 pt-1">
+                <svg class="w-4 h-4 text-amber-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M17 1l4 4-4 4" />
+                  <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                  <path d="M7 23l-4-4 4-4" />
+                  <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                </svg>
+                <span>Klicken, tippen oder <kbd class="px-1.5 py-0.5 text-xs font-semibold bg-stone-100 border border-stone-300 rounded">Leertaste</kbd> drücken zum Umdrehen</span>
+              </div>
+            </div>
+
+            <!-- RÜCKSEITE: Foto oben + alle 10 Eigenschaften strukturiert darunter -->
+            <div
+              id="flashcard-back"
+              class="flashcard-face flashcard-back bg-white rounded-3xl shadow-md border border-stone-200/90 p-5 sm:p-7 flex flex-col gap-5"
+            >
+              <!-- Obere Statuszeile -->
+              <div class="flex items-center justify-between gap-2 pb-3 border-b border-stone-100">
+                <span class="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  Rückseite • Steckbrief
+                </span>
+                <span id="back-status-pill" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
+                  Wiederholen
+                </span>
+              </div>
+
+              <!-- Foto oben + Name & Chemische Formel prominent -->
+              <div class="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 bg-stone-50 rounded-2xl p-4 border border-stone-200/80">
+                <div class="w-full sm:w-44 h-40 sm:h-36 bg-slate-900 rounded-xl p-2 flex items-center justify-center shrink-0 border border-slate-800">
+                  <img
+                    id="back-image"
+                    src=""
+                    alt="Mineral-Foto"
+                    class="max-h-full max-w-full object-contain rounded-lg"
+                  />
+                </div>
+
+                <div class="flex-1 text-center sm:text-left space-y-2 w-full">
+                  <div>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">1. Name</span>
+                    <h2 id="prop-name" class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">—</h2>
+                  </div>
+                  <div class="inline-block bg-white px-3.5 py-1.5 rounded-xl border border-stone-200 shadow-2xs">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">2. Chemische Formel</span>
+                    <p id="prop-formula" class="text-base sm:text-lg font-semibold text-amber-700 tracking-wide">—</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Eigenschaften-Raster (Punkte 3 bis 10) -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                <!-- 3. Farbe -->
+                <div class="bg-stone-50/80 rounded-xl p-3.5 border border-stone-200/70">
+                  <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">3. Farbe</span>
+                  <p id="prop-color" class="text-sm sm:text-base font-medium text-slate-800">—</p>
+                </div>
+
+                <!-- 4. Transparenz -->
+                <div class="bg-stone-50/80 rounded-xl p-3.5 border border-stone-200/70">
+                  <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">4. Transparenz</span>
+                  <p id="prop-transparency" class="text-sm sm:text-base font-medium text-slate-800">—</p>
+                </div>
+
+                <!-- 5. Glanz -->
+                <div class="bg-stone-50/80 rounded-xl p-3.5 border border-stone-200/70">
+                  <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">5. Glanz</span>
+                  <p id="prop-luster" class="text-sm sm:text-base font-medium text-slate-800">—</p>
+                </div>
+
+                <!-- 6. Strichfarbe -->
+                <div class="bg-stone-50/80 rounded-xl p-3.5 border border-stone-200/70">
+                  <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">6. Strichfarbe</span>
+                  <p id="prop-streak" class="text-sm sm:text-base font-medium text-slate-800">—</p>
+                </div>
+
+                <!-- 7. Härte -->
+                <div class="bg-stone-50/80 rounded-xl p-3.5 border border-stone-200/70">
+                  <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">7. Härte</span>
+                  <p id="prop-hardness" class="text-sm sm:text-base font-medium text-slate-800">—</p>
+                </div>
+
+                <!-- 8. Spaltbarkeit -->
+                <div class="bg-stone-50/80 rounded-xl p-3.5 border border-stone-200/70">
+                  <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">8. Spaltbarkeit</span>
+                  <p id="prop-cleavage" class="text-sm sm:text-base font-medium text-slate-800">—</p>
+                </div>
+
+                <!-- 9. Kristallsystem -->
+                <div class="bg-stone-50/80 rounded-xl p-3.5 border border-stone-200/70 sm:col-span-2">
+                  <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">9. Kristallsystem</span>
+                  <p id="prop-crystal-system" class="text-sm sm:text-base font-medium text-slate-800">—</p>
+                </div>
+
+                <!-- 10. Besondere Eigenschaft -->
+                <div class="bg-amber-50/70 rounded-xl p-4 border border-amber-200/80 sm:col-span-2">
+                  <span class="text-xs font-semibold text-amber-800 uppercase tracking-wider block mb-1">10. Besondere Eigenschaft</span>
+                  <p id="prop-special" class="text-sm sm:text-base text-slate-800 leading-relaxed">—</p>
+                </div>
+              </div>
+
+              <!-- Hinweis zum Zurückdrehen -->
+              <div class="text-center text-xs text-slate-400 pt-1">
+                Klicken oder Leertaste drücken, um zur Vorderseite zurückzukehren
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Untere Lern- und Navigations-Bedienelemente -->
+        <div class="max-w-3xl mx-auto space-y-3">
+          <!-- Selbstbewertung: Wiederholen vs. Sicher -->
+          <div class="bg-white rounded-2xl shadow-sm border border-stone-200 p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <span class="text-xs sm:text-sm font-semibold text-slate-600">Lernstatus für diese Karte:</span>
+            <div class="grid grid-cols-2 gap-2.5 w-full sm:w-auto">
+              <button
+                id="btn-mark-repeat"
+                type="button"
+                onclick="markCardStatus('repeat')"
+                class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all"
+              >
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                  <path d="M16 21h5v-5" />
+                </svg>
+                <span>Wiederholen</span>
+              </button>
+
+              <button
+                id="btn-mark-known"
+                type="button"
+                onclick="markCardStatus('known')"
+                class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all"
+              >
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span>Sicher</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Navigation: Vorherige / Umdrehen / Nächste -->
+          <div class="grid grid-cols-3 gap-2.5 sm:gap-4">
+            <button
+              type="button"
+              onclick="prevCard()"
+              class="flex items-center justify-center gap-2 bg-white hover:bg-stone-50 active:scale-[0.99] text-slate-800 font-semibold py-3.5 px-4 rounded-2xl shadow-sm border border-stone-200 transition-all text-sm sm:text-base"
+            >
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              <span>Vorherige</span>
+            </button>
+
+            <button
+              type="button"
+              onclick="flipCard()"
+              class="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-white font-semibold py-3.5 px-4 rounded-2xl shadow-sm transition-all text-sm sm:text-base"
+            >
+              <svg class="w-5 h-5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M17 1l4 4-4 4" />
+                <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                <path d="M7 23l-4-4 4-4" />
+                <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+              </svg>
+              <span>Umdrehen</span>
+            </button>
+
+            <button
+              type="button"
+              onclick="nextCard()"
+              class="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-slate-950 font-semibold py-3.5 px-4 rounded-2xl shadow-sm transition-all text-sm sm:text-base"
+            >
+              <span>Nächste</span>
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Leer-Zustand im Lernmodus (z. B. wenn alle Karten auf "Sicher" stehen) -->
+      <div id="study-empty-state" class="hidden max-w-xl mx-auto bg-white rounded-3xl shadow-sm border border-stone-200 p-8 sm:p-10 text-center space-y-4">
+        <div class="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+          <svg class="w-9 h-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+        </div>
+        <h3 id="empty-state-title" class="text-xl font-bold text-slate-900">Hervorragend! Alles sitzt.</h3>
+        <p id="empty-state-desc" class="text-sm sm:text-base text-slate-600">
+          Du hast aktuell keine Karten als „Wiederholen“ markiert. Alle Minerale in deiner Sammlung stehen auf „Sicher“.
+        </p>
+        <div class="pt-2">
+          <button
+            id="empty-state-btn"
+            type="button"
+            onclick="setStudyFilter('all')"
+            class="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold px-5 py-3 rounded-xl transition-colors"
+          >
+            Alle Karten anzeigen
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================
+         ANSICHT 2: SAMMLUNG & NEUE KARTE
+         ================================================================ -->
+    <section id="view-collection" class="hidden space-y-8">
+
+      <!-- Bereich A: Formular zum Erstellen & Bearbeiten -->
+      <div id="form-section" class="bg-white rounded-3xl shadow-sm border border-stone-200 p-5 sm:p-8">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-5 mb-6 border-b border-stone-100">
+          <div>
+            <h2 id="form-title" class="text-xl sm:text-2xl font-bold text-slate-900">Neues Mineral hinzufügen</h2>
+            <p class="text-sm text-slate-500 mt-0.5">Lade ein Foto hoch und trage die 10 mineralogischen Merkmale ein.</p>
+          </div>
+          <button
+            id="btn-cancel-edit"
+            type="button"
+            onclick="resetForm()"
+            class="hidden self-start sm:self-auto px-4 py-2 rounded-xl text-sm font-semibold bg-stone-100 hover:bg-stone-200 text-slate-700 transition-colors"
+          >
+            Bearbeitung abbrechen
+          </button>
+        </div>
+
+        <form id="mineral-form" onsubmit="handleFormSubmit(event)" class="space-y-6">
+          <input type="hidden" id="edit-mineral-id" value="" />
+
+          <!-- Foto-Upload & Vorschau -->
+          <div class="bg-stone-50 rounded-2xl p-4 sm:p-5 border border-stone-200/80">
+            <label class="block text-sm font-semibold text-slate-800 mb-2">
+              Foto des Minerals <span class="text-xs font-normal text-slate-500">(wird automatisch auf max. 800 px komprimiert)</span>
+            </label>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+              <!-- Drag & Drop / Datei-Auswahl -->
+              <div
+                id="photo-dropzone"
+                onclick="document.getElementById('photo-input').click()"
+                class="md:col-span-7 border-2 border-dashed border-stone-300 hover:border-amber-500 bg-white rounded-2xl p-5 text-center cursor-pointer transition-colors flex flex-col items-center justify-center min-h-[168px]"
+              >
+                <input
+                  id="photo-input"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  onchange="handleFileSelect(event)"
+                />
+                <div class="w-11 h-11 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mb-2.5">
+                  <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                </div>
+                <p class="text-sm font-semibold text-slate-800">Foto hierher ziehen oder auswählen</p>
+                <p class="text-xs text-slate-500 mt-1">JPG, PNG, WebP • Ideal für Smartphone-Fotos</p>
+                <span id="compression-info" class="hidden mt-2.5 inline-block text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-lg"></span>
+              </div>
+
+              <!-- Live-Vorschau -->
+              <div class="md:col-span-5 flex flex-col items-center justify-center bg-slate-900 rounded-2xl p-3 min-h-[168px] relative border border-slate-800">
+                <img
+                  id="form-image-preview"
+                  src=""
+                  alt="Bildvorschau"
+                  class="max-h-36 w-auto max-w-full object-contain rounded-lg hidden"
+                />
+                <div id="form-image-placeholder" class="text-center text-slate-400 px-3 py-4">
+                  <svg class="w-8 h-8 mx-auto mb-1.5 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <polyline points="21 15 16 10 5 21" />
+                  </svg>
+                  <p class="text-xs">Noch kein eigenes Foto gewählt (Standard-Kristallgrafik wird verwendet)</p>
+                </div>
+                <button
+                  id="btn-remove-photo"
+                  type="button"
+                  onclick="clearUploadedPhoto(event)"
+                  class="hidden mt-2 text-xs font-medium text-rose-300 hover:text-rose-200 underline"
+                >
+                  Foto entfernen
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Alle 10 Eigenschaften exakt benannt -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+            <!-- 1. Name -->
+            <div>
+              <label for="input-name" class="block text-sm font-semibold text-slate-800 mb-1.5">
+                1. Name <span class="text-rose-600">*</span>
+              </label>
+              <input
+                id="input-name"
+                type="text"
+                required
+                placeholder="z. B. Quarz, Fluorit, Feldspat"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+              />
+            </div>
+
+            <!-- 2. Chemische Formel + Tiefgestellt-Helfer -->
+            <div>
+              <div class="flex items-center justify-between gap-2 mb-1.5">
+                <label for="input-formula" class="block text-sm font-semibold text-slate-800">
+                  2. Chemische Formel
+                </label>
+                <span class="text-[11px] text-slate-500">Tiefgestellt einfügen:</span>
+              </div>
+              <input
+                id="input-formula"
+                type="text"
+                placeholder="z. B. SiO₂ oder CaCO₃"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+              />
+              <!-- Button-Leiste für tiefgestellte Zahlen -->
+              <div class="flex flex-wrap items-center gap-1 mt-1.5" aria-label="Tiefgestellte Zahlen einfügen">
+                <button type="button" onclick="insertSubscript('₀')" class="px-2 py-1 text-xs font-semibold bg-stone-100 hover:bg-amber-100 text-slate-700 rounded-md border border-stone-200 transition-colors">₀</button>
+                <button type="button" onclick="insertSubscript('₁')" class="px-2 py-1 text-xs font-semibold bg-stone-100 hover:bg-amber-100 text-slate-700 rounded-md border border-stone-200 transition-colors">₁</button>
+                <button type="button" onclick="insertSubscript('₂')" class="px-2 py-1 text-xs font-semibold bg-stone-100 hover:bg-amber-100 text-slate-700 rounded-md border border-stone-200 transition-colors">₂</button>
+                <button type="button" onclick="insertSubscript('₃')" class="px-2 py-1 text-xs font-semibold bg-stone-100 hover:bg-amber-100 text-slate-700 rounded-md border border-stone-200 transition-colors">₃</button>
+                <button type="button" onclick="insertSubscript('₄')" class="px-2 py-1 text-xs font-semibold bg-stone-100 hover:bg-amber-100 text-slate-700 rounded-md border border-stone-200 transition-colors">₄</button>
+                <button type="button" onclick="insertSubscript('₅')" class="px-2 py-1 text-xs font-semibold bg-stone-100 hover:bg-amber-100 text-slate-700 rounded-md border border-stone-200 transition-colors">₅</button>
+                <button type="button" onclick="insertSubscript('₆')" class="px-2 py-1 text-xs font-semibold bg-stone-100 hover:bg-amber-100 text-slate-700 rounded-md border border-stone-200 transition-colors">₆</button>
+                <button type="button" onclick="insertSubscript('₇')" class="px-2 py-1 text-xs font-semibold bg-stone-100 hover:bg-amber-100 text-slate-700 rounded-md border border-stone-200 transition-colors">₇</button>
+                <button type="button" onclick="insertSubscript('₈')" class="px-2 py-1 text-xs font-semibold bg-stone-100 hover:bg-amber-100 text-slate-700 rounded-md border border-stone-200 transition-colors">₈</button>
+                <button type="button" onclick="insertSubscript('₉')" class="px-2 py-1 text-xs font-semibold bg-stone-100 hover:bg-amber-100 text-slate-700 rounded-md border border-stone-200 transition-colors">₉</button>
+                <button type="button" onclick="insertSubscript('·')" title="Kristallwasser-Punkt" class="px-2 py-1 text-xs font-semibold bg-stone-100 hover:bg-amber-100 text-slate-700 rounded-md border border-stone-200 transition-colors">·</button>
+              </div>
+            </div>
+
+            <!-- 3. Farbe -->
+            <div>
+              <label for="input-color" class="block text-sm font-semibold text-slate-800 mb-1.5">
+                3. Farbe
+              </label>
+              <input
+                id="input-color"
+                type="text"
+                placeholder="z. B. Farblos, weiß, violett"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+              />
+            </div>
+
+            <!-- 4. Transparenz (mit Datalist) -->
+            <div>
+              <label for="input-transparency" class="block text-sm font-semibold text-slate-800 mb-1.5">
+                4. Transparenz
+              </label>
+              <input
+                id="input-transparency"
+                type="text"
+                list="list-transparency"
+                placeholder="Auswählen oder eingeben…"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+              />
+              <datalist id="list-transparency">
+                <option value="Durchsichtig"></option>
+                <option value="Durchscheinend"></option>
+                <option value="Undurchsichtig"></option>
+              </datalist>
+            </div>
+
+            <!-- 5. Glanz (mit Datalist) -->
+            <div>
+              <label for="input-luster" class="block text-sm font-semibold text-slate-800 mb-1.5">
+                5. Glanz
+              </label>
+              <input
+                id="input-luster"
+                type="text"
+                list="list-luster"
+                placeholder="Auswählen oder eingeben…"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+              />
+              <datalist id="list-luster">
+                <option value="Glasglanz"></option>
+                <option value="Metallglanz"></option>
+                <option value="Diamantglanz"></option>
+                <option value="Perlmuttglanz"></option>
+                <option value="Fettglanz"></option>
+                <option value="Seidenglanz"></option>
+                <option value="Matt"></option>
+              </datalist>
+            </div>
+
+            <!-- 6. Strichfarbe -->
+            <div>
+              <label for="input-streak" class="block text-sm font-semibold text-slate-800 mb-1.5">
+                6. Strichfarbe
+              </label>
+              <input
+                id="input-streak"
+                type="text"
+                placeholder="z. B. Weiß, grünlich-schwarz"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+              />
+            </div>
+
+            <!-- 7. Härte -->
+            <div>
+              <label for="input-hardness" class="block text-sm font-semibold text-slate-800 mb-1.5">
+                7. Härte
+              </label>
+              <input
+                id="input-hardness"
+                type="text"
+                placeholder="z. B. 7 (Mohshärte)"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+              />
+            </div>
+
+            <!-- 8. Spaltbarkeit (mit Datalist) -->
+            <div>
+              <label for="input-cleavage" class="block text-sm font-semibold text-slate-800 mb-1.5">
+                8. Spaltbarkeit
+              </label>
+              <input
+                id="input-cleavage"
+                type="text"
+                list="list-cleavage"
+                placeholder="Auswählen oder eingeben…"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+              />
+              <datalist id="list-cleavage">
+                <option value="Vollkommen"></option>
+                <option value="Gut"></option>
+                <option value="Deutlich"></option>
+                <option value="Undeutlich"></option>
+                <option value="Keine"></option>
+              </datalist>
+            </div>
+
+            <!-- 9. Kristallsystem (mit Datalist) -->
+            <div class="sm:col-span-2">
+              <label for="input-crystal-system" class="block text-sm font-semibold text-slate-800 mb-1.5">
+                9. Kristallsystem
+              </label>
+              <input
+                id="input-crystal-system"
+                type="text"
+                list="list-crystal-system"
+                placeholder="Auswählen oder eingeben…"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+              />
+              <datalist id="list-crystal-system">
+                <option value="Kubisch"></option>
+                <option value="Tetragonal"></option>
+                <option value="Hexagonal"></option>
+                <option value="Trigonal"></option>
+                <option value="Orthorhombisch"></option>
+                <option value="Monoklin"></option>
+                <option value="Triklin"></option>
+                <option value="Amorph"></option>
+              </datalist>
+            </div>
+
+            <!-- 10. Besondere Eigenschaft -->
+            <div class="sm:col-span-2">
+              <label for="input-special" class="block text-sm font-semibold text-slate-800 mb-1.5">
+                10. Besondere Eigenschaft
+              </label>
+              <textarea
+                id="input-special"
+                rows="3"
+                placeholder="z. B. Doppelbrechung, reagiert mit kalter HCl, Magnetismus, Zwillingsbildung, muscheliger Bruch…"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm sm:text-base"
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- Formular-Aktionsbuttons -->
+          <div class="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2 border-t border-stone-100">
+            <button
+              type="button"
+              onclick="resetForm()"
+              class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-semibold bg-stone-100 hover:bg-stone-200 text-slate-700 transition-colors"
+            >
+              Zurücksetzen
+            </button>
+            <button
+              id="btn-submit-form"
+              type="submit"
+              class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-sm transition-colors"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span>Karteikarte speichern</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Bereich B: Backup & Datensicherung (JSON Export / Import) -->
+      <div class="bg-white rounded-3xl shadow-sm border border-stone-200 p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <h3 class="text-base sm:text-lg font-bold text-slate-900">Datensicherung &amp; Geräte-Transfer</h3>
+            <span id="storage-usage-badge" class="text-xs font-medium bg-stone-100 text-slate-600 px-2.5 py-0.5 rounded-full border border-stone-200">
+              Speicher: 0 KB
+            </span>
+          </div>
+          <p class="text-xs sm:text-sm text-slate-500">
+            Sichere deine gesamte Mineraliensammlung inkl. komprimierter Fotos als JSON-Datei oder lade ein Backup hoch.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onclick="exportCollectionJSON()"
+            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white transition-colors"
+          >
+            <svg class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>JSON-Export</span>
+          </button>
+
+          <button
+            type="button"
+            onclick="document.getElementById('json-import-input').click()"
+            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-stone-100 hover:bg-stone-200 text-slate-800 border border-stone-200 transition-colors"
+          >
+            <svg class="w-4 h-4 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            <span>JSON-Import</span>
+          </button>
+          <input
+            id="json-import-input"
+            type="file"
+            accept=".json,application/json"
+            class="hidden"
+            onchange="handleJSONImportSelect(event)"
+          />
+
+          <button
+            type="button"
+            onclick="restoreMissingDefaults()"
+            title="Fügt die 3 Beispiel-Minerale (Quarz, Pyrit, Calcit) hinzu, falls sie fehlen"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition-colors"
+          >
+            <span>+ Beispiel-Minerale</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Bereich C: Gespeicherte Sammlung & Suche -->
+      <div class="space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">Deine Mineraliensammlung (<span id="collection-count-heading">0</span>)</h2>
+            <p class="text-sm text-slate-500">Durchsuche deine Karten, bearbeite Eigenschaften oder prüfe deinen Lernfortschritt.</p>
+          </div>
+
+          <!-- Suchfeld & Statusfilter -->
+          <div class="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
+            <div class="relative flex-1 sm:w-64">
+              <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                id="collection-search-input"
+                type="search"
+                oninput="renderCollectionGrid()"
+                placeholder="Suchen (Name, Formel, System…)"
+                class="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+
+            <select
+              id="collection-status-filter"
+              onchange="renderCollectionGrid()"
+              aria-label="Nach Lernstatus filtern"
+              class="px-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              <option value="all">Alle Status</option>
+              <option value="repeat">Nur Wiederholen</option>
+              <option value="known">Nur Sicher</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Karten-Grid -->
+        <div id="collection-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          <!-- Wird dynamisch per JS befüllt -->
+        </div>
+
+        <!-- Leer-Zustand bei Suche oder leerer Sammlung -->
+        <div id="collection-empty-state" class="hidden bg-white rounded-3xl border border-stone-200 p-8 text-center space-y-2">
+          <p class="text-base font-semibold text-slate-800">Keine passenden Minerale gefunden.</p>
+          <p class="text-sm text-slate-500">Passe deinen Suchbegriff an oder lege oben eine neue Karteikarte an.</p>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- ==================== FUSSZEILE ==================== -->
+  <footer class="border-t border-stone-200 bg-white mt-12">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+      <span>Mineral-Trainer • Alle Daten werden lokal in deinem Browser gespeichert.</span>
+      <span>Tastaturkürzel im Lernmodus: <kbd class="px-1.5 py-0.5 bg-stone-100 border border-stone-300 rounded">Leertaste</kbd> Umdrehen • <kbd class="px-1.5 py-0.5 bg-stone-100 border border-stone-300 rounded">←</kbd> <kbd class="px-1.5 py-0.5 bg-stone-100 border border-stone-300 rounded">→</kbd> Blättern</span>
+    </div>
+  </footer>
+
+  <!-- ==================== BENUTZERDEFINIERTE MODALS (KEIN alert/confirm) ==================== -->
+
+  <!-- Lösch-Bestätigungs-Modal -->
+  <div id="delete-modal" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-stone-200 max-w-md w-full p-6 space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            <path d="M10 11v6M14 11v6" />
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-slate-900">Mineral löschen?</h3>
+          <p id="delete-modal-text" class="text-sm text-slate-600">Möchtest du diese Karteikarte wirklich unwiderruflich entfernen?</p>
+        </div>
+      </div>
+      <div class="flex items-center justify-end gap-2.5 pt-2">
+        <button
+          type="button"
+          onclick="closeDeleteModal()"
+          class="px-4 py-2.5 rounded-xl text-sm font-semibold bg-stone-100 hover:bg-stone-200 text-slate-700 transition-colors"
+        >
+          Abbrechen
+        </button>
+        <button
+          id="confirm-delete-btn"
+          type="button"
+          class="px-4 py-2.5 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-colors"
+        >
+          Endgültig löschen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JSON-Import-Auswahl-Modal -->
+  <div id="import-modal" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-stone-200 max-w-md w-full p-6 space-y-4">
+      <div class="space-y-1.5">
+        <h3 class="text-lg font-bold text-slate-900">JSON-Backup importieren</h3>
+        <p id="import-modal-text" class="text-sm text-slate-600">
+          Es wurden gültige Mineral-Karteikarten erkannt. Wie möchtest du fortfahren?
+        </p>
+      </div>
+      <div class="flex flex-col gap-2.5 pt-1">
+        <button
+          type="button"
+          onclick="executeJSONImport('merge')"
+          class="w-full px-4 py-3 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-slate-950 transition-colors text-left flex items-center justify-between"
+        >
+          <span>Zur bestehenden Sammlung hinzufügen</span>
+          <span class="text-xs font-bold bg-amber-600/20 px-2 py-0.5 rounded-md">Zusammenführen</span>
+        </button>
+        <button
+          type="button"
+          onclick="executeJSONImport('replace')"
+          class="w-full px-4 py-3 rounded-xl text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white transition-colors text-left flex items-center justify-between"
+        >
+          <span>Aktuelle Sammlung vollständig ersetzen</span>
+          <span class="text-xs font-medium bg-slate-700 px-2 py-0.5 rounded-md">Überschreiben</span>
+        </button>
+        <button
+          type="button"
+          onclick="closeImportModal()"
+          class="w-full px-4 py-2.5 rounded-xl text-sm font-semibold bg-stone-100 hover:bg-stone-200 text-slate-700 transition-colors"
+        >
+          Abbrechen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast-Benachrichtigungen -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-[calc(100%-2rem)] pointer-events-none"></div>
+
+  <!-- ==================== JAVASCRIPT LOGIK ==================== -->
+  <script>
+    'use strict';
+
+    /**
+     * Konstanten & Speicher-Schlüssel
+     */
+    const STORAGE_KEY = 'mineral_trainer_cards_v1';
+    const MAX_IMAGE_DIMENSION = 800; // Maximale Breite/Höhe in px für Canvas-Komprimierung
+    const JPEG_QUALITY = 0.75;       // JPEG-Komprimierungsqualität
+
+    /**
+     * Erzeugt hochwertige, eigens gezeichnete SVG-Kristallgrafiken als UTF-8 Data-URLs
+     * für die 3 Beispiel-Minerale (Quarz, Pyrit, Calcit) sowie ein Standard-Platzhalterbild.
+     */
+    function svgToDataUrl(svgString) {
+      return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString.trim());
+    }
+
+    const DEFAULT_SVGS = {
+      quarz: svgToDataUrl(`
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 450" width="600" height="450">
+          <defs>
+            <radialGradient id="bgQ" cx="50%" cy="45%" r="65%">
+              <stop offset="0%" stop-color="#1e293b"/>
+              <stop offset="100%" stop-color="#090d16"/>
+            </radialGradient>
+            <linearGradient id="qMainLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#f8fafc" stop-opacity="0.92"/>
+              <stop offset="55%" stop-color="#cbd5e1" stop-opacity="0.72"/>
+              <stop offset="100%" stop-color="#94a3b8" stop-opacity="0.85"/>
+            </linearGradient>
+            <linearGradient id="qMainRight" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#e2e8f0" stop-opacity="0.78"/>
+              <stop offset="50%" stop-color="#a78bfa" stop-opacity="0.38"/>
+              <stop offset="100%" stop-color="#475569" stop-opacity="0.88"/>
+            </linearGradient>
+            <linearGradient id="qTip" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.98"/>
+              <stop offset="100%" stop-color="#ddd6fe" stop-opacity="0.78"/>
+            </linearGradient>
+            <linearGradient id="rockBase" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#475569"/>
+              <stop offset="100%" stop-color="#1e293b"/>
+            </linearGradient>
+          </defs>
+          <rect width="600" height="450" fill="url(#bgQ)"/>
+          <!-- Lichtschein hinter dem Kristall -->
+          <ellipse cx="300" cy="220" rx="160" ry="130" fill="#c4b5fd" opacity="0.09"/>
+
+          <!-- Sekundärer linker Quarz-Kristall -->
+          <g transform="translate(185, 145) rotate(-18)">
+            <polygon points="35,0 68,42 68,185 2,185 2,42" fill="url(#qMainLeft)" stroke="#f8fafc" stroke-width="1.2" stroke-opacity="0.6"/>
+            <polygon points="35,0 68,42 35,54 2,42" fill="url(#qTip)"/>
+            <line x1="35" y1="54" x2="35" y2="185" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.2"/>
+            <!-- Typische Querstreifung -->
+            <line x1="6" y1="82" x2="64" y2="82" stroke="#f8fafc" stroke-opacity="0.28" stroke-width="1"/>
+            <line x1="6" y1="108" x2="64" y2="108" stroke="#f8fafc" stroke-opacity="0.22" stroke-width="1"/>
+            <line x1="6" y1="136" x2="64" y2="136" stroke="#f8fafc" stroke-opacity="0.25" stroke-width="1"/>
+          </g>
+
+          <!-- Sekundärer rechter Quarz-Kristall -->
+          <g transform="translate(345, 160) rotate(21)">
+            <polygon points="32,0 62,38 62,175 2,175 2,38" fill="url(#qMainRight)" stroke="#e2e8f0" stroke-width="1.2" stroke-opacity="0.55"/>
+            <polygon points="32,0 62,38 32,49 2,38" fill="url(#qTip)"/>
+            <line x1="32" y1="49" x2="32" y2="175" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.2"/>
+            <line x1="6" y1="90" x2="58" y2="90" stroke="#ffffff" stroke-opacity="0.24" stroke-width="1"/>
+            <line x1="6" y1="122" x2="58" y2="122" stroke="#ffffff" stroke-opacity="0.22" stroke-width="1"/>
+          </g>
+
+          <!-- Hauptkristall (sechseckiges Prisma mit Rhomboederspitze) -->
+          <g transform="translate(248, 72)">
+            <!-- Linke Prismenfläche -->
+            <polygon points="52,0 8,58 8,265 52,265" fill="url(#qMainLeft)"/>
+            <!-- Rechte Prismenfläche -->
+            <polygon points="52,0 96,58 96,265 52,265" fill="url(#qMainRight)"/>
+            <!-- Kristallspitze Facetten -->
+            <polygon points="52,0 8,58 52,76" fill="url(#qTip)"/>
+            <polygon points="52,0 96,58 52,76" fill="#c4b5fd" fill-opacity="0.58"/>
+            <!-- Kantenlinien -->
+            <polyline points="8,265 8,58 52,0 96,58 96,265" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-opacity="0.75"/>
+            <line x1="52" y1="0" x2="52" y2="265" stroke="#ffffff" stroke-width="1.4" stroke-opacity="0.65"/>
+            <polyline points="8,58 52,76 96,58" fill="none" stroke="#ffffff" stroke-width="1.3" stroke-opacity="0.65"/>
+            <!-- Horizontale Wachstumsstreifen -->
+            <line x1="11" y1="105" x2="93" y2="105" stroke="#ffffff" stroke-opacity="0.28" stroke-width="1.1"/>
+            <line x1="11" y1="138" x2="93" y2="138" stroke="#ffffff" stroke-opacity="0.22" stroke-width="1"/>
+            <line x1="11" y1="172" x2="93" y2="172" stroke="#ffffff" stroke-opacity="0.26" stroke-width="1.1"/>
+            <line x1="11" y1="206" x2="93" y2="206" stroke="#ffffff" stroke-opacity="0.20" stroke-width="1"/>
+            <!-- Glanzreflex -->
+            <polygon points="18,68 32,64 26,185 16,185" fill="#ffffff" fill-opacity="0.26"/>
+          </g>
+
+          <!-- Gesteinsmatrix / Sockel -->
+          <polygon points="115,365 175,318 265,326 345,314 435,332 485,372 455,398 145,398" fill="url(#rockBase)" stroke="#64748b" stroke-width="1.5"/>
+          <polygon points="175,318 265,326 240,362 150,358" fill="#334155" opacity="0.7"/>
+          <polygon points="345,314 435,332 415,368 325,355" fill="#1e293b" opacity="0.8"/>
+        </svg>
+      `),
+
+      pyrit: svgToDataUrl(`
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 450" width="600" height="450">
+          <defs>
+            <radialGradient id="bgP" cx="50%" cy="45%" r="65%">
+              <stop offset="0%" stop-color="#1e293b"/>
+              <stop offset="100%" stop-color="#090d16"/>
+            </radialGradient>
+            <linearGradient id="goldTop" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#fef08a"/>
+              <stop offset="50%" stop-color="#eab308"/>
+              <stop offset="100%" stop-color="#ca8a04"/>
+            </linearGradient>
+            <linearGradient id="goldLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#facc15"/>
+              <stop offset="100%" stop-color="#a16207"/>
+            </linearGradient>
+            <linearGradient id="goldRight" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#854d0e"/>
+              <stop offset="100%" stop-color="#422006"/>
+            </linearGradient>
+          </defs>
+          <rect width="600" height="450" fill="url(#bgP)"/>
+          <ellipse cx="300" cy="225" rx="170" ry="125" fill="#facc15" opacity="0.08"/>
+
+          <!-- Gesteinsmatrix hinten -->
+          <polygon points="110,350 175,275 305,260 440,285 495,355 445,395 155,395" fill="#334155" stroke="#475569" stroke-width="1.5"/>
+
+          <!-- Linker verwachsener Pyrit-Würfel -->
+          <g transform="translate(155, 165)">
+            <polygon points="65,0 130,32 65,64 0,32" fill="url(#goldTop)" stroke="#fef9c3" stroke-width="1"/>
+            <polygon points="0,32 65,64 65,142 0,110" fill="url(#goldLeft)" stroke="#fde047" stroke-width="0.8"/>
+            <polygon points="65,64 130,32 130,110 65,142" fill="url(#goldRight)" stroke="#a16207" stroke-width="0.8"/>
+            <!-- Typische Würfel-Streifung -->
+            <line x1="12" y1="54" x2="54" y2="75" stroke="#fef08a" stroke-opacity="0.45" stroke-width="1.2"/>
+            <line x1="12" y1="74" x2="54" y2="95" stroke="#fef08a" stroke-opacity="0.35" stroke-width="1.2"/>
+            <line x1="12" y1="94" x2="54" y2="115" stroke="#fef08a" stroke-opacity="0.4" stroke-width="1.2"/>
+          </g>
+
+          <!-- Rechter verwachsener Pyrit-Würfel -->
+          <g transform="translate(325, 180)">
+            <polygon points="58,0 116,28 58,56 0,28" fill="url(#goldTop)" stroke="#fef9c3" stroke-width="1"/>
+            <polygon points="0,28 58,56 58,125 0,97" fill="url(#goldLeft)" stroke="#fde047" stroke-width="0.8"/>
+            <polygon points="58,56 116,28 116,97 58,125" fill="url(#goldRight)" stroke="#a16207" stroke-width="0.8"/>
+            <line x1="72" y1="62" x2="72" y2="112" stroke="#eab308" stroke-opacity="0.35" stroke-width="1.2"/>
+            <line x1="88" y1="54" x2="88" y2="104" stroke="#eab308" stroke-opacity="0.3" stroke-width="1.2"/>
+          </g>
+
+          <!-- Großer Haupt-Pyrit-Würfel im Zentrum -->
+          <g transform="translate(215, 92)">
+            <!-- Obere Fläche -->
+            <polygon points="88,0 176,44 88,88 0,44" fill="url(#goldTop)" stroke="#fef9c3" stroke-width="1.5"/>
+            <!-- Linke Fläche -->
+            <polygon points="0,44 88,88 88,196 0,152" fill="url(#goldLeft)" stroke="#fde047" stroke-width="1.2"/>
+            <!-- Rechte Fläche -->
+            <polygon points="88,88 176,44 176,152 88,196" fill="url(#goldRight)" stroke="#ca8a04" stroke-width="1.2"/>
+            <!-- Metallische Streifung auf den Kristallflächen -->
+            <line x1="14" y1="68" x2="74" y2="98" stroke="#fef9c3" stroke-opacity="0.55" stroke-width="1.4"/>
+            <line x1="14" y1="90" x2="74" y2="120" stroke="#fef9c3" stroke-opacity="0.4" stroke-width="1.2"/>
+            <line x1="14" y1="112" x2="74" y2="142" stroke="#fef9c3" stroke-opacity="0.5" stroke-width="1.4"/>
+            <line x1="14" y1="134" x2="74" y2="164" stroke="#fef9c3" stroke-opacity="0.35" stroke-width="1.2"/>
+            <!-- Glanzstern -->
+            <path d="M88 32 L91 41 L100 44 L91 47 L88 56 L85 47 L76 44 L85 41 Z" fill="#ffffff" opacity="0.85"/>
+          </g>
+        </svg>
+      `),
+
+      calcit: svgToDataUrl(`
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 450" width="600" height="450">
+          <defs>
+            <radialGradient id="bgC" cx="50%" cy="45%" r="65%">
+              <stop offset="0%" stop-color="#1e293b"/>
+              <stop offset="100%" stop-color="#090d16"/>
+            </radialGradient>
+            <linearGradient id="calTop" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.88"/>
+              <stop offset="100%" stop-color="#bae6fd" stop-opacity="0.55"/>
+            </linearGradient>
+            <linearGradient id="calFront" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#f0f9ff" stop-opacity="0.62"/>
+              <stop offset="50%" stop-color="#e0f2fe" stop-opacity="0.38"/>
+              <stop offset="100%" stop-color="#7dd3fc" stop-opacity="0.52"/>
+            </linearGradient>
+            <linearGradient id="calSide" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#bae6fd" stop-opacity="0.55"/>
+              <stop offset="100%" stop-color="#0284c7" stop-opacity="0.48"/>
+            </linearGradient>
+          </defs>
+          <rect width="600" height="450" fill="url(#bgC)"/>
+          <ellipse cx="300" cy="225" rx="165" ry="125" fill="#38bdf8" opacity="0.09"/>
+
+          <!-- Referenzlinie hinter dem Kristall zur Darstellung der Doppelbrechung -->
+          <line x1="150" y1="275" x2="230" y2="235" stroke="#f59e0b" stroke-width="4" stroke-linecap="round"/>
+          <line x1="382" y1="160" x2="455" y2="124" stroke="#f59e0b" stroke-width="4" stroke-linecap="round"/>
+
+          <!-- Spaltrhomboeder (Doppelspat) -->
+          <g transform="translate(175, 95)">
+            <!-- Hintere Kanten (durchscheinend) -->
+            <polyline points="85,15 245,15 205,135" fill="none" stroke="#bae6fd" stroke-opacity="0.35" stroke-width="1.3" stroke-dasharray="4 4"/>
+            <line x1="85" y1="15" x2="45" y2="135" stroke="#bae6fd" stroke-opacity="0.35" stroke-width="1.3" stroke-dasharray="4 4"/>
+
+            <!-- Doppelbrechung im Inneren: zwei versetzte Linien -->
+            <line x1="58" y1="168" x2="195" y2="100" stroke="#fbbf24" stroke-width="3.5" stroke-opacity="0.88" stroke-linecap="round"/>
+            <line x1="72" y1="184" x2="209" y2="116" stroke="#fbbf24" stroke-width="3.5" stroke-opacity="0.72" stroke-linecap="round"/>
+
+            <!-- Obere Spaltfläche -->
+            <polygon points="85,15 245,15 205,115 45,115" fill="url(#calTop)" stroke="#ffffff" stroke-width="1.6" stroke-opacity="0.85"/>
+            <!-- Vordere geneigte Rhomboederfläche -->
+            <polygon points="45,115 205,115 165,245 5,245" fill="url(#calFront)" stroke="#e0f2fe" stroke-width="1.6" stroke-opacity="0.85"/>
+            <!-- Rechte geneigte Rhomboederfläche -->
+            <polygon points="205,115 245,15 205,145 165,245" fill="url(#calSide)" stroke="#bae6fd" stroke-width="1.5" stroke-opacity="0.8"/>
+
+            <!-- Spaltbarkeits-Linien (vollkommene Spaltbarkeit nach dem Rhomboeder) -->
+            <line x1="36" y1="145" x2="194" y2="145" stroke="#ffffff" stroke-opacity="0.32" stroke-width="1"/>
+            <line x1="24" y1="185" x2="182" y2="185" stroke="#ffffff" stroke-opacity="0.28" stroke-width="1"/>
+            <line x1="95" y1="115" x2="55" y2="245" stroke="#ffffff" stroke-opacity="0.28" stroke-width="1"/>
+            <line x1="150" y1="115" x2="110" y2="245" stroke="#ffffff" stroke-opacity="0.25" stroke-width="1"/>
+
+            <!-- Perlmutt-/Glasglanz-Reflex -->
+            <polygon points="95,30 140,30 122,78 78,78" fill="#ffffff" fill-opacity="0.32"/>
+          </g>
+        </svg>
+      `),
+
+      fallback: svgToDataUrl(`
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 450" width="600" height="450">
+          <rect width="600" height="450" fill="#0f172a"/>
+          <g transform="translate(220, 115)" fill="none" stroke="#f59e0b" stroke-width="3">
+            <polygon points="80,0 150,55 150,165 80,220 10,165 10,55" fill="rgba(245,158,11,0.14)"/>
+            <line x1="80" y1="0" x2="80" y2="220"/>
+            <polyline points="10,55 80,95 150,55"/>
+            <polyline points="10,165 80,125 150,165"/>
+          </g>
+        </svg>
+      `)
+    };
+
+    /**
+     * 3 realistische Beispiel-Minerale für den Erststart
+     */
+    function getDefaultMinerals() {
+      return [
+        {
+          id: 'default-quarz-01',
+          name: 'Quarz',
+          formula: 'SiO₂',
+          color: 'Farblos, weiß (Milchquarz), violett (Amethyst), rosa, rauchbraun',
+          transparency: 'Durchsichtig bis durchscheinend',
+          luster: 'Glasglanz (auf Bruchflächen Fettglanz)',
+          streak: 'Weiß',
+          hardness: '7 (Mohshärte)',
+          cleavage: 'Keine (muscheliger Bruch)',
+          crystalSystem: 'Trigonal',
+          special: 'Piezoelektrisch; ritzt Fensterglas mühelos; bildet oft sechseckige Prismen mit rhomboedrischen Spitzen und typischer horizontaler Querstreifung.',
+          image: DEFAULT_SVGS.quarz,
+          status: 'repeat'
+        },
+        {
+          id: 'default-pyrit-02',
+          name: 'Pyrit',
+          formula: 'FeS₂',
+          color: 'Messinggelb bis goldgelb (oft metallisch anlaufend)',
+          transparency: 'Undurchsichtig',
+          luster: 'Metallglanz',
+          streak: 'Grünlich-schwarz bis bräunlich-schwarz',
+          hardness: '6 – 6,5 (Mohshärte)',
+          cleavage: 'Undeutlich (muscheliger bis unebener Bruch)',
+          crystalSystem: 'Kubisch',
+          special: '„Katzengold“ – bildet häufig perfekte Würfel mit charakteristischer Streifung auf den Kristallflächen sowie Pentagondodekaeder; spröde (im Gegensatz zu Gold).',
+          image: DEFAULT_SVGS.pyrit,
+          status: 'repeat'
+        },
+        {
+          id: 'default-calcit-03',
+          name: 'Calcit',
+          formula: 'CaCO₃',
+          color: 'Farblos, weiß, gelblich, rötlich, bläulich',
+          transparency: 'Durchsichtig bis durchscheinend',
+          luster: 'Glasglanz bis Perlmuttglanz (auf Spaltflächen)',
+          streak: 'Weiß',
+          hardness: '3 (Mohshärte)',
+          cleavage: 'Vollkommen (nach dem Rhomboeder in 3 Richtungen)',
+          crystalSystem: 'Trigonal',
+          special: 'Starke Doppelbrechung (Doppelspat); braust bei Kontakt mit kalter, verdünnter Salzsäure (HCl) unter CO₂-Entwicklung deutlich auf.',
+          image: DEFAULT_SVGS.calcit,
+          status: 'repeat'
+        }
+      ];
+    }
+
+    /**
+     * Anwendungszustand (State)
+     */
+    let minerals = [];
+    let currentTab = 'study';
+    let studyFilter = 'all'; // 'all' | 'repeat'
+    let studyOrderIds = [];   // Aktuelle Reihenfolge der Karten-IDs im Lernmodus
+    let currentStudyIndex = 0;
+    let isCardFlipped = false;
+
+    // Formular-Upload-Zwischenspeicher
+    let currentFormImage = '';
+    let pendingDeleteId = null;
+    let pendingImportData = null;
+
+    // Touch-Swipe-Tracking
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    /**
+     * Initialisierung beim Laden der Seite
+     */
+    window.addEventListener('DOMContentLoaded', () => {
+      loadMineralsFromStorage();
+      rebuildStudyDeck(false);
+      setupDragAndDrop();
+      setupTouchSwipe();
+      setupKeyboardNavigation();
+      updateAllUI();
+    });
+
+    window.addEventListener('resize', () => {
+      if (currentTab === 'study') {
+        syncFlashcardHeight();
+      }
+    });
+
+    /**
+     * Laden & Speichern im localStorage mit Fehlerbehandlung
+     */
+    function loadMineralsFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw === null) {
+          // Erststart: 3 realistische Beispiel-Minerale laden
+          minerals = getDefaultMinerals();
+          saveMineralsToStorage();
+        } else {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            minerals = parsed.map(normalizeMineralObject);
+          } else {
+            minerals = getDefaultMinerals();
+          }
+        }
+      } catch (err) {
+        console.error('Fehler beim Laden aus dem localStorage:', err);
+        minerals = getDefaultMinerals();
+        showToast('Speicher konnte nicht gelesen werden. Beispiel-Minerale geladen.', 'warning');
+      }
+    }
+
+    function saveMineralsToStorage() {
+      try {
+        const serialized = JSON.stringify(minerals);
+        localStorage.setItem(STORAGE_KEY, serialized);
+        updateStorageUsageBadge(serialized.length);
+        return true;
+      } catch (err) {
+        console.error('Speicherlimit erreicht oder Schreibfehler:', err);
+        showToast('Speicherlimit des Browsers erreicht! Bitte erstelle ein JSON-Backup.', 'error');
+        return false;
+      }
+    }
+
+    function normalizeMineralObject(item) {
+      return {
+        id: String(item.id || generateId()),
+        name: String(item.name || 'Unbenanntes Mineral').trim(),
+        formula: String(item.formula || '').trim(),
+        color: String(item.color || '').trim(),
+        transparency: String(item.transparency || '').trim(),
+        luster: String(item.luster || '').trim(),
+        streak: String(item.streak || '').trim(),
+        hardness: String(item.hardness || '').trim(),
+        cleavage: String(item.cleavage || '').trim(),
+        crystalSystem: String(item.crystalSystem || '').trim(),
+        special: String(item.special || '').trim(),
+        image: typeof item.image === 'string' && item.image.length > 0 ? item.image : DEFAULT_SVGS.fallback,
+        status: item.status === 'known' ? 'known' : 'repeat'
+      };
+    }
+
+    function generateId() {
+      return 'min-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 7);
+    }
+
+    function updateStorageUsageBadge(byteLength) {
+      const badge = document.getElementById('storage-usage-badge');
+      if (!badge) return;
+      const bytes = typeof byteLength === 'number'
+        ? byteLength
+        : (localStorage.getItem(STORAGE_KEY) || '').length;
+      const kb = Math.max(1, Math.round(bytes / 1024));
+      badge.textContent = `Speicher: ${kb} KB`;
+    }
+
+    /**
+     * Tab-Umschaltung: 'study' (Lernmodus) vs. 'collection' (Sammlung & Neue Karte)
+     */
+    function switchTab(tabName) {
+      currentTab = tabName;
+      const studyView = document.getElementById('view-study');
+      const collectionView = document.getElementById('view-collection');
+      const btnStudy = document.getElementById('tab-btn-study');
+      const btnCollection = document.getElementById('tab-btn-collection');
+
+      if (tabName === 'study') {
+        studyView.classList.remove('hidden');
+        collectionView.classList.add('hidden');
+
+        btnStudy.className = 'flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 bg-amber-500 text-slate-950 shadow-sm';
+        btnCollection.className = 'flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 text-slate-300 hover:text-white hover:bg-slate-800';
+
+        rebuildStudyDeck(false);
+        renderStudyView();
+      } else {
+        studyView.classList.add('hidden');
+        collectionView.classList.remove('hidden');
+
+        btnCollection.className = 'flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 bg-amber-500 text-slate-950 shadow-sm';
+        btnStudy.className = 'flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 text-slate-300 hover:text-white hover:bg-slate-800';
+
+        renderCollectionGrid();
+        updateStorageUsageBadge();
+      }
+    }
+
+    /**
+     * Gesamte UI synchronisieren
+     */
+    function updateAllUI() {
+      const total = minerals.length;
+      const repeatCount = minerals.filter(m => m.status === 'repeat').length;
+      const knownCount = minerals.filter(m => m.status === 'known').length;
+
+      document.getElementById('nav-count-badge').textContent = total;
+      document.getElementById('header-total-badge-mobile').textContent = `${total} ${total === 1 ? 'Mineral' : 'Minerale'}`;
+      document.getElementById('count-all').textContent = total;
+      document.getElementById('count-repeat').textContent = repeatCount;
+      document.getElementById('count-known').textContent = knownCount;
+      document.getElementById('collection-count-heading').textContent = total;
+
+      renderStudyView();
+      renderCollectionGrid();
+      updateStorageUsageBadge();
+    }
+
+    /**
+     * ==================== LERNMODUS LOGIK ====================
+     */
+    function getFilteredMineralsForStudy() {
+      if (studyFilter === 'repeat') {
+        return minerals.filter(m => m.status === 'repeat');
+      }
+      return minerals;
+    }
+
+    function rebuildStudyDeck(shuffle) {
+      const filtered = getFilteredMineralsForStudy();
+      const filteredIds = filtered.map(m => m.id);
+
+      if (shuffle) {
+        // Fisher-Yates Shuffle
+        const arr = [...filteredIds];
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        studyOrderIds = arr;
+        currentStudyIndex = 0;
+      } else {
+        // Bestehende Reihenfolge beibehalten und neue/gelöschte abgleichen
+        const kept = studyOrderIds.filter(id => filteredIds.includes(id));
+        const missing = filteredIds.filter(id => !kept.includes(id));
+        studyOrderIds = [...kept, ...missing];
+        if (currentStudyIndex >= studyOrderIds.length) {
+          currentStudyIndex = Math.max(0, studyOrderIds.length - 1);
+        }
+      }
+    }
+
+    function setStudyFilter(filterMode) {
+      studyFilter = filterMode;
+      isCardFlipped = false;
+      currentStudyIndex = 0;
+
+      const btnAll = document.getElementById('filter-all-btn');
+      const btnRepeat = document.getElementById('filter-repeat-btn');
+
+      if (filterMode === 'all') {
+        btnAll.className = 'px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors bg-slate-900 text-white shadow-sm';
+        btnRepeat.className = 'px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors bg-stone-100 text-slate-700 hover:bg-stone-200';
+      } else {
+        btnRepeat.className = 'px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors bg-amber-500 text-slate-950 shadow-sm';
+        btnAll.className = 'px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors bg-stone-100 text-slate-700 hover:bg-stone-200';
+      }
+
+      rebuildStudyDeck(false);
+      renderStudyView();
+    }
+
+    function shuffleStudyDeck() {
+      const filtered = getFilteredMineralsForStudy();
+      if (filtered.length <= 1) {
+        showToast('Mindestens 2 Karten erforderlich zum Mischen.', 'info');
+        return;
+      }
+      isCardFlipped = false;
+      rebuildStudyDeck(true);
+      renderStudyView();
+      showToast('Kartenstapel neu gemischt!', 'success');
+    }
+
+    function renderStudyView() {
+      rebuildStudyDeck(false);
+      const stage = document.getElementById('study-card-stage');
+      const emptyState = document.getElementById('study-empty-state');
+      const progressText = document.getElementById('study-progress-text');
+      const progressBar = document.getElementById('study-progress-bar');
+
+      const deckLength = studyOrderIds.length;
+
+      if (deckLength === 0) {
+        stage.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        progressText.textContent = 'Karte 0 von 0';
+        progressBar.style.width = minerals.length > 0 ? '100%' : '0%';
+
+        const emptyTitle = document.getElementById('empty-state-title');
+        const emptyDesc = document.getElementById('empty-state-desc');
+        const emptyBtn = document.getElementById('empty-state-btn');
+
+        if (minerals.length === 0) {
+          emptyTitle.textContent = 'Noch keine Minerale in der Sammlung';
+          emptyDesc.textContent = 'Wechsle zum Tab „Sammlung & Neue Karte“, um dein erstes Mineral mit Foto anzulegen.';
+          emptyBtn.textContent = 'Erstes Mineral anlegen';
+          emptyBtn.onclick = () => switchTab('collection');
+        } else {
+          emptyTitle.textContent = 'Hervorragend! Alles sitzt.';
+          emptyDesc.textContent = 'Du hast aktuell keine Karten als „Wiederholen“ markiert. Alle Minerale stehen auf „Sicher“.';
+          emptyBtn.textContent = 'Alle Karten anzeigen';
+          emptyBtn.onclick = () => setStudyFilter('all');
+        }
+        return;
+      }
+
+      stage.classList.remove('hidden');
+      emptyState.classList.add('hidden');
+
+      const currentId = studyOrderIds[currentStudyIndex];
+      const mineral = minerals.find(m => m.id === currentId);
+      if (!mineral) return;
+
+      // Fortschritt aktualisieren
+      progressText.textContent = `Karte ${currentStudyIndex + 1} von ${deckLength}`;
+      const percent = Math.round(((currentStudyIndex + 1) / deckLength) * 100);
+      progressBar.style.width = `${percent}%`;
+
+      // Flip-Zustand setzen
+      const cardInner = document.getElementById('flashcard-inner');
+      if (isCardFlipped) {
+        cardInner.classList.add('is-flipped');
+      } else {
+        cardInner.classList.remove('is-flipped');
+      }
+
+      // Bilder auf Vorder- und Rückseite setzen (mit Fallback)
+      const frontImg = document.getElementById('front-image');
+      const backImg = document.getElementById('back-image');
+      frontImg.onerror = () => { frontImg.src = DEFAULT_SVGS.fallback; };
+      backImg.onerror = () => { backImg.src = DEFAULT_SVGS.fallback; };
+      frontImg.src = mineral.image || DEFAULT_SVGS.fallback;
+      backImg.src = mineral.image || DEFAULT_SVGS.fallback;
+
+      // Rückseite: Alle 10 Eigenschaften eintragen
+      document.getElementById('prop-name').textContent = mineral.name || '—';
+      document.getElementById('prop-formula').textContent = mineral.formula || '—';
+      document.getElementById('prop-color').textContent = mineral.color || '—';
+      document.getElementById('prop-transparency').textContent = mineral.transparency || '—';
+      document.getElementById('prop-luster').textContent = mineral.luster || '—';
+      document.getElementById('prop-streak').textContent = mineral.streak || '—';
+      document.getElementById('prop-hardness').textContent = mineral.hardness || '—';
+      document.getElementById('prop-cleavage').textContent = mineral.cleavage || '—';
+      document.getElementById('prop-crystal-system').textContent = mineral.crystalSystem || '—';
+      document.getElementById('prop-special').textContent = mineral.special || '—';
+
+      // Status-Badges & Selbstbewertungs-Buttons aktualisieren
+      updateStatusBadgesAndButtons(mineral.status);
+
+      // Dynamische Kartenhöhe nach Rendering anpassen
+      requestAnimationFrame(() => syncFlashcardHeight());
+      frontImg.onload = () => syncFlashcardHeight();
+    }
+
+    function updateStatusBadgesAndButtons(status) {
+      const frontPill = document.getElementById('front-status-pill');
+      const backPill = document.getElementById('back-status-pill');
+      const btnRepeat = document.getElementById('btn-mark-repeat');
+      const btnKnown = document.getElementById('btn-mark-known');
+
+      if (status === 'known') {
+        frontPill.textContent = '✓ Sicher';
+        frontPill.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800';
+        backPill.textContent = '✓ Sicher';
+        backPill.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800';
+
+        btnKnown.className = 'flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all bg-emerald-600 text-white border-emerald-600 shadow-sm';
+        btnRepeat.className = 'flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all bg-white hover:bg-amber-50 text-slate-700 border-stone-300';
+      } else {
+        frontPill.textContent = '↻ Wiederholen';
+        frontPill.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800';
+        backPill.textContent = '↻ Wiederholen';
+        backPill.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800';
+
+        btnRepeat.className = 'flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all bg-amber-500 text-slate-950 border-amber-500 shadow-sm';
+        btnKnown.className = 'flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all bg-white hover:bg-emerald-50 text-slate-700 border-stone-300';
+      }
+    }
+
+    /**
+     * Passt die Höhe des 3D-Karten-Containers exakt an die sichtbare Seite an,
+     * damit alle 10 Eigenschaften auf Mobilgeräten und Desktops ohne Abschneiden Platz haben.
+     */
+    function syncFlashcardHeight() {
+      const cardInner = document.getElementById('flashcard-inner');
+      const frontFace = document.getElementById('flashcard-front');
+      const backFace = document.getElementById('flashcard-back');
+      if (!cardInner || !frontFace || !backFace) return;
+
+      const targetFace = isCardFlipped ? backFace : frontFace;
+      const height = targetFace.scrollHeight;
+      if (height > 0) {
+        cardInner.style.minHeight = `${height}px`;
+      }
+    }
+
+    function flipCard() {
+      if (studyOrderIds.length === 0) return;
+      isCardFlipped = !isCardFlipped;
+      const cardInner = document.getElementById('flashcard-inner');
+      if (isCardFlipped) {
+        cardInner.classList.add('is-flipped');
+      } else {
+        cardInner.classList.remove('is-flipped');
+      }
+      syncFlashcardHeight();
+    }
+
+    function nextCard() {
+      if (studyOrderIds.length === 0) return;
+      isCardFlipped = false;
+      currentStudyIndex = (currentStudyIndex + 1) % studyOrderIds.length;
+      renderStudyView();
+    }
+
+    function prevCard() {
+      if (studyOrderIds.length === 0) return;
+      isCardFlipped = false;
+      currentStudyIndex = (currentStudyIndex - 1 + studyOrderIds.length) % studyOrderIds.length;
+      renderStudyView();
+    }
+
+    function markCardStatus(newStatus) {
+      if (studyOrderIds.length === 0) return;
+      const currentId = studyOrderIds[currentStudyIndex];
+      const mineral = minerals.find(m => m.id === currentId);
+      if (!mineral) return;
+
+      mineral.status = newStatus;
+      saveMineralsToStorage();
+
+      const label = newStatus === 'known' ? 'Sicher' : 'Wiederholen';
+      showToast(`„${mineral.name}“ als „${label}“ markiert.`, newStatus === 'known' ? 'success' : 'info');
+
+      // Falls wir im Filter "Nur Wiederholen" sind und auf "Sicher" klicken, zur nächsten Karte wechseln
+      if (studyFilter === 'repeat' && newStatus === 'known') {
+        isCardFlipped = false;
+      }
+
+      updateAllUI();
+    }
+
+    /**
+     * Tastatursteuerung (Leertaste zum Umdrehen, Pfeiltasten links/rechts zum Blättern)
+     */
+    function setupKeyboardNavigation() {
+      document.addEventListener('keydown', (e) => {
+        if (currentTab !== 'study') return;
+
+        // Nicht auslösen, wenn ein Modal offen ist oder ein Eingabefeld fokussiert ist
+        const deleteModalOpen = !document.getElementById('delete-modal').classList.contains('hidden');
+        const importModalOpen = !document.getElementById('import-modal').classList.contains('hidden');
+        if (deleteModalOpen || importModalOpen) return;
+
+        const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+        if (e.code === 'Space') {
+          e.preventDefault();
+          flipCard();
+        } else if (e.code === 'ArrowRight') {
+          e.preventDefault();
+          nextCard();
+        } else if (e.code === 'ArrowLeft') {
+          e.preventDefault();
+          prevCard();
+        }
+      });
+    }
+
+    /**
+     * Touch-Swipe-Unterstützung für Smartphones auf der Karteikarte
+     */
+    function setupTouchSwipe() {
+      const cardInner = document.getElementById('flashcard-inner');
+      if (!cardInner) return;
+
+      cardInner.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+
+      cardInner.addEventListener('touchend', (e) => {
+        if (e.changedTouches.length !== 1) return;
+        const deltaX = e.changedTouches[0].clientX - touchStartX;
+        const deltaY = e.changedTouches[0].clientY - touchStartY;
+
+        // Horizontaler Swipe (> 60px und deutlicher als vertikales Scrollen)
+        if (Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
+          if (deltaX < 0) {
+            nextCard();
+          } else {
+            prevCard();
+          }
+        }
+      }, { passive: true });
+    }
+
+    /**
+     * ==================== FOTO-UPLOAD & CANVAS-KOMPRIMIERUNG ====================
+     */
+    function setupDragAndDrop() {
+      const dropzone = document.getElementById('photo-dropzone');
+      if (!dropzone) return;
+
+      ['dragenter', 'dragover'].forEach(evtName => {
+        dropzone.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.add('dropzone-active');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(evtName => {
+        dropzone.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.remove('dropzone-active');
+        });
+      });
+
+      dropzone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer ? e.dataTransfer.files : null;
+        if (files && files.length > 0) {
+          processImageFile(files[0]);
+        }
+      });
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files ? event.target.files[0] : null;
+      if (file) {
+        processImageFile(file);
+      }
+    }
+
+    /**
+     * Komprimiert jedes hochgeladene Bild clientseitig über ein unsichtbares HTML5-Canvas
+     * auf maximal 800px Breite/Höhe und JPEG-Qualität 0.75.
+     */
+    function processImageFile(file) {
+      if (!file.type.startsWith('image/')) {
+        showToast('Bitte wähle eine gültige Bilddatei (JPG, PNG, WebP) aus.', 'error');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            let width = img.naturalWidth || img.width;
+            let height = img.naturalHeight || img.height;
+
+            // Proportional skalieren, falls Breite oder Höhe > 800px
+            if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+              if (width > height) {
+                height = Math.round((height * MAX_IMAGE_DIMENSION) / width);
+                width = MAX_IMAGE_DIMENSION;
+              } else {
+                width = Math.round((width * MAX_IMAGE_DIMENSION) / height);
+                height = MAX_IMAGE_DIMENSION;
+              }
+            }
+
+            // Unsichtbares HTML5-Canvas erstellen
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+
+            // Dunklen Schiefer-Hintergrund für transparente PNGs setzen, damit der Kontrast optimal bleibt
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Als komprimiertes JPEG exportieren (Qualität 0.75)
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+            currentFormImage = compressedDataUrl;
+
+            // Vorschau & Komprimierungs-Info aktualisieren
+            updateFormImagePreview(compressedDataUrl, `${width}×${height} px • ca. ${Math.round(compressedDataUrl.length / 1024)} KB`);
+            showToast('Foto erfolgreich komprimiert und geladen.', 'success');
+          } catch (err) {
+            console.error('Fehler bei der Bildkomprimierung:', err);
+            showToast('Bild konnte nicht verarbeitet werden.', 'error');
+          }
+        };
+        img.onerror = () => {
+          showToast('Bilddatei konnte nicht gelesen werden.', 'error');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function updateFormImagePreview(src, infoText) {
+      const preview = document.getElementById('form-image-preview');
+      const placeholder = document.getElementById('form-image-placeholder');
+      const removeBtn = document.getElementById('btn-remove-photo');
+      const infoBadge = document.getElementById('compression-info');
+
+      if (src) {
+        preview.src = src;
+        preview.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+        removeBtn.classList.remove('hidden');
+      } else {
+        preview.src = '';
+        preview.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+        removeBtn.classList.add('hidden');
+      }
+
+      if (infoText) {
+        infoBadge.textContent = `Komprimiert: ${infoText}`;
+        infoBadge.classList.remove('hidden');
+      } else {
+        infoBadge.classList.add('hidden');
+      }
+    }
+
+    function clearUploadedPhoto(event) {
+      if (event) event.stopPropagation();
+      currentFormImage = '';
+      document.getElementById('photo-input').value = '';
+      updateFormImagePreview('', '');
+    }
+
+    /**
+     * Fügt tiefgestellte Zahlen an der Cursor-Position in das Feld "Chemische Formel" ein
+     */
+    function insertSubscript(char) {
+      const input = document.getElementById('input-formula');
+      if (!input) return;
+
+      const start = input.selectionStart || input.value.length;
+      const end = input.selectionEnd || input.value.length;
+      const before = input.value.substring(0, start);
+      const after = input.value.substring(end);
+
+      input.value = before + char + after;
+      input.focus();
+      const newPos = start + char.length;
+      input.setSelectionRange(newPos, newPos);
+    }
+
+    /**
+     * ==================== FORMULAR SPEICHERN, BEARBEITEN & LÖSCHEN ====================
+     */
+    function handleFormSubmit(event) {
+      event.preventDefault();
+
+      const nameVal = document.getElementById('input-name').value.trim();
+      if (!nameVal) {
+        showToast('Bitte gib mindestens den Namen des Minerals ein.', 'error');
+        document.getElementById('input-name').focus();
+        return;
+      }
+
+      const editId = document.getElementById('edit-mineral-id').value;
+      const mineralData = {
+        id: editId || generateId(),
+        name: nameVal,
+        formula: document.getElementById('input-formula').value.trim(),
+        color: document.getElementById('input-color').value.trim(),
+        transparency: document.getElementById('input-transparency').value.trim(),
+        luster: document.getElementById('input-luster').value.trim(),
+        streak: document.getElementById('input-streak').value.trim(),
+        hardness: document.getElementById('input-hardness').value.trim(),
+        cleavage: document.getElementById('input-cleavage').value.trim(),
+        crystalSystem: document.getElementById('input-crystal-system').value.trim(),
+        special: document.getElementById('input-special').value.trim(),
+        image: currentFormImage || DEFAULT_SVGS.fallback,
+        status: 'repeat'
+      };
+
+      if (editId) {
+        const idx = minerals.findIndex(m => m.id === editId);
+        if (idx !== -1) {
+          mineralData.status = minerals[idx].status;
+          minerals[idx] = mineralData;
+        }
+        if (saveMineralsToStorage()) {
+          showToast(`Änderungen an „${mineralData.name}“ gespeichert.`, 'success');
+          resetForm();
+          updateAllUI();
+        }
+      } else {
+        minerals.unshift(mineralData);
+        if (saveMineralsToStorage()) {
+          showToast(`Neues Mineral „${mineralData.name}“ hinzugefügt!`, 'success');
+          resetForm();
+          updateAllUI();
+        }
+      }
+    }
+
+    function editMineral(id) {
+      const mineral = minerals.find(m => m.id === id);
+      if (!mineral) return;
+
+      document.getElementById('edit-mineral-id').value = mineral.id;
+      document.getElementById('input-name').value = mineral.name;
+      document.getElementById('input-formula').value = mineral.formula;
+      document.getElementById('input-color').value = mineral.color;
+      document.getElementById('input-transparency').value = mineral.transparency;
+      document.getElementById('input-luster').value = mineral.luster;
+      document.getElementById('input-streak').value = mineral.streak;
+      document.getElementById('input-hardness').value = mineral.hardness;
+      document.getElementById('input-cleavage').value = mineral.cleavage;
+      document.getElementById('input-crystal-system').value = mineral.crystalSystem;
+      document.getElementById('input-special').value = mineral.special;
+
+      currentFormImage = mineral.image || '';
+      updateFormImagePreview(currentFormImage, '');
+
+      document.getElementById('form-title').textContent = `Mineral bearbeiten: ${mineral.name}`;
+      document.getElementById('btn-submit-form').innerHTML = `
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        <span>Änderungen speichern</span>
+      `;
+      document.getElementById('btn-cancel-edit').classList.remove('hidden');
+
+      document.getElementById('form-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function resetForm() {
+      document.getElementById('mineral-form').reset();
+      document.getElementById('edit-mineral-id').value = '';
+      currentFormImage = '';
+      updateFormImagePreview('', '');
+
+      document.getElementById('form-title').textContent = 'Neues Mineral hinzufügen';
+      document.getElementById('btn-submit-form').innerHTML = `
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        <span>Karteikarte speichern</span>
+      `;
+      document.getElementById('btn-cancel-edit').classList.add('hidden');
+    }
+
+    /**
+     * Löschen über eigenes Bestätigungs-Modal
+     */
+    function promptDeleteMineral(id) {
+      const mineral = minerals.find(m => m.id === id);
+      if (!mineral) return;
+
+      pendingDeleteId = id;
+      document.getElementById('delete-modal-text').textContent =
+        `Möchtest du das Mineral „${mineral.name}“ wirklich unwiderruflich aus deiner Sammlung löschen?`;
+
+      const confirmBtn = document.getElementById('confirm-delete-btn');
+      confirmBtn.onclick = () => confirmDeleteMineral();
+
+      document.getElementById('delete-modal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+      pendingDeleteId = null;
+      document.getElementById('delete-modal').classList.add('hidden');
+    }
+
+    function confirmDeleteMineral() {
+      if (!pendingDeleteId) return;
+      const target = minerals.find(m => m.id === pendingDeleteId);
+      const deletedName = target ? target.name : 'Mineral';
+
+      minerals = minerals.filter(m => m.id !== pendingDeleteId);
+      if (document.getElementById('edit-mineral-id').value === pendingDeleteId) {
+        resetForm();
+      }
+
+      saveMineralsToStorage();
+      closeDeleteModal();
+      updateAllUI();
+      showToast(`„${deletedName}“ wurde gelöscht.`, 'info');
+    }
+
+    /**
+     * ==================== SAMMLUNGS-ÜBERSICHT & SUCHE ====================
+     */
+    function renderCollectionGrid() {
+      const grid = document.getElementById('collection-grid');
+      const emptyState = document.getElementById('collection-empty-state');
+      if (!grid) return;
+
+      const query = (document.getElementById('collection-search-input').value || '').trim().toLowerCase();
+      const statusFilter = document.getElementById('collection-status-filter').value;
+
+      const filtered = minerals.filter(m => {
+        if (statusFilter !== 'all' && m.status !== statusFilter) return false;
+        if (!query) return true;
+
+        const haystack = [
+          m.name,
+          m.formula,
+          m.color,
+          m.transparency,
+          m.luster,
+          m.streak,
+          m.hardness,
+          m.cleavage,
+          m.crystalSystem,
+          m.special
+        ].join(' ').toLowerCase();
+
+        return haystack.includes(query);
+      });
+
+      if (filtered.length === 0) {
+        grid.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+      grid.innerHTML = filtered.map(mineral => {
+        const isKnown = mineral.status === 'known';
+        const statusBadge = isKnown
+          ? `<span class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">✓ Sicher</span>`
+          : `<span class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800">↻ Wiederholen</span>`;
+
+        return `
+          <article class="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden flex flex-col justify-between hover:shadow-md transition-shadow">
+            <div>
+              <!-- Bildbereich -->
+              <div class="relative h-44 bg-slate-900 flex items-center justify-center p-3 border-b border-slate-800">
+                <img
+                  src="${escapeAttr(mineral.image || DEFAULT_SVGS.fallback)}"
+                  onerror="this.src='${DEFAULT_SVGS.fallback}'"
+                  alt="${escapeAttr(mineral.name)}"
+                  class="max-h-full max-w-full object-contain rounded-lg"
+                />
+                <div class="absolute top-2.5 right-2.5">
+                  ${statusBadge}
+                </div>
+              </div>
+
+              <!-- Kurzinfos -->
+              <div class="p-4 space-y-2">
+                <div class="flex items-baseline justify-between gap-2">
+                  <h3 class="text-lg font-bold text-slate-900 truncate">${escapeHtml(mineral.name)}</h3>
+                  <span class="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/70 shrink-0">
+                    ${escapeHtml(mineral.formula || '—')}
+                  </span>
+                </div>
+
+                <dl class="text-xs text-slate-600 space-y-1 pt-1">
+                  <div class="flex justify-between gap-2">
+                    <dt class="text-slate-400">Kristallsystem:</dt>
+                    <dd class="font-medium text-slate-800 text-right truncate">${escapeHtml(mineral.crystalSystem || '—')}</dd>
+                  </div>
+                  <div class="flex justify-between gap-2">
+                    <dt class="text-slate-400">Härte:</dt>
+                    <dd class="font-medium text-slate-800 text-right truncate">${escapeHtml(mineral.hardness || '—')}</dd>
+                  </div>
+                  <div class="flex justify-between gap-2">
+                    <dt class="text-slate-400">Glanz:</dt>
+                    <dd class="font-medium text-slate-800 text-right truncate">${escapeHtml(mineral.luster || '—')}</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+
+            <!-- Aktionen: Bearbeiten & Löschen -->
+            <div class="px-4 py-3 bg-stone-50 border-t border-stone-100 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onclick="studySingleMineral('${escapeAttr(mineral.id)}')"
+                title="Diese Karte im Lernmodus öffnen"
+                class="text-xs font-semibold text-slate-600 hover:text-amber-700 transition-colors"
+              >
+                Im Lernmodus öffnen →
+              </button>
+
+              <div class="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onclick="editMineral('${escapeAttr(mineral.id)}')"
+                  class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-stone-100 text-slate-700 border border-stone-300 transition-colors"
+                >
+                  Bearbeiten
+                </button>
+                <button
+                  type="button"
+                  onclick="promptDeleteMineral('${escapeAttr(mineral.id)}')"
+                  class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors"
+                >
+                  Löschen
+                </button>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function studySingleMineral(id) {
+      studyFilter = 'all';
+      isCardFlipped = false;
+      setStudyFilter('all');
+      const idx = studyOrderIds.indexOf(id);
+      if (idx !== -1) {
+        currentStudyIndex = idx;
+      }
+      switchTab('study');
+    }
+
+    /**
+     * ==================== JSON BACKUP (EXPORT & IMPORT) ====================
+     */
+    function exportCollectionJSON() {
+      try {
+        const backupPayload = {
+          app: 'Mineral-Trainer',
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          minerals: minerals
+        };
+
+        const jsonStr = JSON.stringify(backupPayload, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+
+        const dateTag = new Date().toISOString().slice(0, 10);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `mineralien-sammlung-${dateTag}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showToast(`Backup mit ${minerals.length} Mineralen heruntergeladen.`, 'success');
+      } catch (err) {
+        console.error('Export-Fehler:', err);
+        showToast('Beim Exportieren ist ein Fehler aufgetreten.', 'error');
+      }
+    }
+
+    function handleJSONImportSelect(event) {
+      const file = event.target.files ? event.target.files[0] : null;
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          const list = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.minerals) ? parsed.minerals : null);
+
+          if (!list || list.length === 0) {
+            showToast('Die JSON-Datei enthält keine gültigen Mineral-Karteikarten.', 'error');
+            return;
+          }
+
+          pendingImportData = list.map(normalizeMineralObject);
+          document.getElementById('import-modal-text').textContent =
+            `Es wurden ${pendingImportData.length} Mineral-Karteikarten in der Datei gefunden. Wie möchtest du sie importieren?`;
+          document.getElementById('import-modal').classList.remove('hidden');
+        } catch (err) {
+          console.error('JSON-Import-Fehler:', err);
+          showToast('Ungültiges JSON-Dateiformat.', 'error');
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function closeImportModal() {
+      pendingImportData = null;
+      document.getElementById('import-modal').classList.add('hidden');
+    }
+
+    function executeJSONImport(mode) {
+      if (!pendingImportData) return;
+
+      if (mode === 'replace') {
+        minerals = pendingImportData;
+      } else {
+        // Zusammenführen: Neue IDs vergeben, um Kollisionen zu vermeiden
+        const importedWithFreshIds = pendingImportData.map(item => ({
+          ...item,
+          id: generateId()
+        }));
+        minerals = [...importedWithFreshIds, ...minerals];
+      }
+
+      const count = pendingImportData.length;
+      closeImportModal();
+
+      if (saveMineralsToStorage()) {
+        rebuildStudyDeck(false);
+        updateAllUI();
+        showToast(`${count} Mineral-Karteikarten erfolgreich importiert!`, 'success');
+      }
+    }
+
+    function restoreMissingDefaults() {
+      const defaults = getDefaultMinerals();
+      const existingNames = new Set(minerals.map(m => m.name.toLowerCase()));
+      const toAdd = defaults.filter(d => !existingNames.has(d.name.toLowerCase()));
+
+      if (toAdd.length === 0) {
+        showToast('Alle 3 Beispiel-Minerale (Quarz, Pyrit, Calcit) sind bereits vorhanden.', 'info');
+        return;
+      }
+
+      minerals = [...minerals, ...toAdd];
+      if (saveMineralsToStorage()) {
+        updateAllUI();
+        showToast(`${toAdd.length} Beispiel-Mineral(e) zur Sammlung hinzugefügt.`, 'success');
+      }
+    }
+
+    /**
+     * ==================== HILFSFUNKTIONEN (TOAST & ESCAPING) ====================
+     */
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+
+      const styles = {
+        success: 'bg-slate-900 text-white border-emerald-500',
+        error: 'bg-rose-950 text-white border-rose-500',
+        warning: 'bg-amber-950 text-amber-100 border-amber-500',
+        info: 'bg-slate-900 text-white border-amber-400'
+      };
+
+      const toast = document.createElement('div');
+      toast.className = `toast-enter pointer-events-auto px-4 py-3 rounded-xl shadow-lg border-l-4 text-xs sm:text-sm font-medium flex items-center justify-between gap-3 ${styles[type] || styles.info}`;
+      toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(8px)';
+        toast.style.transition = 'all 0.25s ease';
+        setTimeout(() => {
+          if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 260);
+      }, 3200);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function escapeAttr(str) {
+      return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>
