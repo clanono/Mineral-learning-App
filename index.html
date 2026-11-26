@@ -976,6 +976,8 @@
     let studyFilter = 'all';
     let activeTab = 'study';
     let currentFormImage = '';
+    let deleteTargetId = null;
+    let pendingImportCards = null;
     // Cloud-Sync- & Account-Zustand
     let db = null;
     let auth = null;
@@ -2319,10 +2321,18 @@
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          const parsed = JSON.parse(e.target.result);
+          const rawText = String(e.target.result || '').replace(/^\uFEFF/, '').trim();
+          if (rawText.startsWith('<')) {
+            showToast('Die Datei enthält HTML statt JSON (bitte echte .json-Datei wählen).', 'error');
+            return;
+          }
+
+          const parsed = JSON.parse(rawText);
           const list = Array.isArray(parsed)
             ? parsed
-            : (parsed && Array.isArray(parsed.minerals) ? parsed.minerals : null);
+            : (parsed && Array.isArray(parsed.minerals)
+                ? parsed.minerals
+                : (parsed && Array.isArray(parsed.cards) ? parsed.cards : null));
 
           if (!list || list.length === 0) {
             showToast('Keine gültigen Mineralien-Karten in der JSON-Datei gefunden.', 'error');
@@ -2334,7 +2344,7 @@
             `${pendingImportCards.length} Karteikarte(n) erkannt. Möchtest du sie ergänzen oder die bestehende Sammlung ersetzen?`;
           document.getElementById('import-modal').classList.remove('hidden');
         } catch (err) {
-          console.error(err);
+          console.error('JSON-Import-Fehler:', err);
           showToast('Ungültige JSON-Datei.', 'error');
         } finally {
           event.target.value = '';
