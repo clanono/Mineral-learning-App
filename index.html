@@ -15,6 +15,7 @@
 
   <!-- Firebase JS SDK v10.12.5 (Compat-Version für direkte Nutzung im Browser ohne Build-Tool) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 
   <style>
@@ -140,10 +141,22 @@
           <span id="sync-status-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
           <span id="sync-status-text">Synchronisiert...</span>
         </div>
+
+        <!-- Eingeloggter Account & Abmelden-Button -->
+        <div id="user-account-bar" class="hidden inline-flex items-center gap-2 bg-slate-950/90 border border-slate-800 rounded-full pl-3 pr-1.5 py-1">
+          <span id="header-user-email" class="text-xs font-medium text-slate-300 max-w-[150px] sm:max-w-[210px] truncate" title="Angemeldeter Account"></span>
+          <button
+            type="button"
+            onclick="handleLogout()"
+            class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-200 hover:bg-rose-500/20 hover:text-rose-300 transition-colors"
+          >
+            Abmelden
+          </button>
+        </div>
       </div>
 
       <!-- Haupt-Tabs -->
-      <nav class="grid grid-cols-2 sm:flex bg-slate-950 p-1 rounded-xl border border-slate-800 gap-1" aria-label="Hauptnavigation">
+      <nav id="main-nav" class="grid grid-cols-2 sm:flex bg-slate-950 p-1 rounded-xl border border-slate-800 gap-1" aria-label="Hauptnavigation">
         <button
           id="tab-btn-study"
           type="button"
@@ -168,7 +181,7 @@
     <div id="sync-error-banner" class="hidden bg-rose-950/95 border-t border-rose-500/45 px-4 py-2.5 text-xs text-rose-100">
       <div class="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
         <span id="sync-error-detail" class="font-semibold">Cloud-Synchronisation nicht verfügbar. Die App arbeitet im Lokalmodus weiter.</span>
-        <span class="text-rose-300">Hinweis: Prüfe in der Firebase Console unter „Firestore Database“ die Datenbank &amp; Regeln.</span>
+        <span class="text-rose-300">Hinweis: Prüfe in Firebase unter „Firestore → Regeln“ die Account-Regel für users/{userId}/minerals.</span>
       </div>
     </div>
   </header>
@@ -177,6 +190,93 @@
        HAUPTBEREICH
        ======================================================================== -->
   <main class="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
+
+    <!-- ======================================================================
+         BEREICH 0: ANMELDUNG & REGISTRIERUNG (ACCOUNT-SYSTEM)
+         ====================================================================== -->
+    <section id="auth-screen" class="hidden max-w-md mx-auto my-4 sm:my-10">
+      <div class="bg-slate-800/95 border border-slate-700 rounded-2xl p-6 sm:p-7 shadow-2xl space-y-5">
+        <div class="text-center space-y-2">
+          <div class="w-12 h-12 rounded-2xl bg-sky-400/15 border border-sky-400/30 text-sky-400 flex items-center justify-center mx-auto">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <h2 id="auth-heading" class="text-xl font-extrabold text-white">Beim Mineral-Trainer anmelden</h2>
+          <p class="text-xs sm:text-sm text-slate-400">
+            Jeder Account besitzt einen eigenen geschützten Cloud-Speicher für PC &amp; Smartphone.
+          </p>
+        </div>
+
+        <!-- Umschalter: Anmelden / Registrieren -->
+        <div class="grid grid-cols-2 bg-slate-950 p-1 rounded-xl border border-slate-800 gap-1">
+          <button
+            id="auth-tab-login"
+            type="button"
+            onclick="switchAuthMode('login')"
+            class="py-2 rounded-lg text-xs sm:text-sm font-bold bg-sky-400 text-slate-950 transition-all"
+          >
+            Anmelden
+          </button>
+          <button
+            id="auth-tab-register"
+            type="button"
+            onclick="switchAuthMode('register')"
+            class="py-2 rounded-lg text-xs sm:text-sm font-bold text-slate-300 hover:text-white transition-all"
+          >
+            Neues Konto
+          </button>
+        </div>
+
+        <!-- Fehlermeldung -->
+        <div id="auth-error-box" class="hidden bg-rose-950/90 border border-rose-500/50 text-rose-200 text-xs rounded-xl p-3"></div>
+
+        <!-- Login-/Registrierungs-Formular -->
+        <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="space-y-4">
+          <div>
+            <label for="auth-email" class="block text-xs sm:text-sm font-semibold text-slate-200 mb-1.5">
+              E-Mail-Adresse
+            </label>
+            <input
+              id="auth-email"
+              type="email"
+              required
+              autocomplete="email"
+              placeholder="name@beispiel.de"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none focus:border-sky-400"
+            />
+          </div>
+
+          <div>
+            <label for="auth-password" class="block text-xs sm:text-sm font-semibold text-slate-200 mb-1.5">
+              Passwort <span class="text-slate-400 font-normal">(mind. 6 Zeichen)</span>
+            </label>
+            <input
+              id="auth-password"
+              type="password"
+              required
+              minlength="6"
+              autocomplete="current-password"
+              placeholder="••••••••"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none focus:border-sky-400"
+            />
+          </div>
+
+          <button
+            id="auth-submit-btn"
+            type="submit"
+            class="w-full py-3 px-4 rounded-xl bg-sky-400 text-slate-950 text-sm font-extrabold hover:bg-sky-300 transition-all shadow-lg shadow-sky-400/20 min-h-[46px]"
+          >
+            Anmelden
+          </button>
+        </form>
+
+        <p class="text-[11px] text-center text-slate-400 leading-relaxed">
+          Tipp: Nach dem ersten Einloggen kannst du unter <strong class="text-slate-300">Sammlung &amp; Neu → JSON-Import</strong> deine bestehenden Karten in deinen persönlichen Account laden.
+        </p>
+      </div>
+    </section>
 
     <!-- ======================================================================
          BEREICH 1: LERNMODUS (3D-KARTEIKARTEN)
@@ -876,11 +976,11 @@
     let studyFilter = 'all';
     let activeTab = 'study';
     let currentFormImage = '';
-    let deleteTargetId = null;
-    let pendingImportCards = null;
-
-    // Cloud-Sync-Zustand
+    // Cloud-Sync- & Account-Zustand
     let db = null;
+    let auth = null;
+    let currentUser = null;
+    let authMode = 'login';
     let isCloudEnabled = false;
     let unsubscribeSnapshot = null;
     let hasHandledInitialCloudSeed = false;
@@ -1079,6 +1179,10 @@
         badge.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border bg-amber-500/15 text-amber-300 border-amber-500/35 transition-colors';
         dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
         banner.classList.add('hidden');
+      } else if (mode === 'logged-out') {
+        badge.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border bg-slate-800 text-slate-300 border-slate-700 transition-colors';
+        dot.className = 'w-2 h-2 rounded-full bg-slate-400';
+        banner.classList.add('hidden');
       } else {
         // Lokalmodus (Offline, Berechtigungsfehler oder Datenbank nicht gefunden)
         badge.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border bg-rose-500/15 text-rose-300 border-rose-500/40 transition-colors';
@@ -1090,28 +1194,27 @@
       }
     }
 
-    function initDataLayer() {
-      // Zuerst sofort vorhandenen lokalen Cache laden, damit die UI ohne Wartezeit rendert
-      const cachedCards = loadLocalCards();
-      if (cachedCards.length > 0) {
-        minerals = cachedCards;
-        syncDeckOrder(false);
-        updateAllUI();
-      }
+    /**
+     * Liefert die persönliche Firestore-Collection des eingeloggten Nutzers
+     */
+    function getUserMineralsCollection() {
+      if (!db || !currentUser) return null;
+      return db.collection('users').doc(currentUser.uid).collection(FIRESTORE_COLLECTION);
+    }
 
+    function initDataLayer() {
       if (!isFirebaseConfigured()) {
         isCloudEnabled = false;
         setSyncStatus('local', 'Lokalmodus');
-        if (minerals.length === 0) {
-          minerals = getStarterMinerals();
-          saveLocalCards(minerals);
-        }
+        const cachedCards = loadLocalCards();
+        minerals = cachedCards.length > 0 ? cachedCards : getStarterMinerals();
+        if (cachedCards.length === 0) saveLocalCards(minerals);
         syncDeckOrder(false);
         updateAllUI();
         return;
       }
 
-      // Firebase initialisieren & Echtzeit-Listener starten
+      // Firebase Auth & Firestore initialisieren
       try {
         if (typeof firebase === 'undefined') {
           throw new Error('Firebase SDK konnte nicht vom CDN geladen werden.');
@@ -1121,63 +1224,203 @@
           firebase.initializeApp(FIREBASE_CONFIG);
         }
         db = firebase.firestore();
-        isCloudEnabled = true;
+        auth = firebase.auth();
 
-        setSyncStatus('syncing', 'Synchronisiert...');
+        setSyncStatus('syncing', 'Prüfe Login...');
 
-        unsubscribeSnapshot = db.collection(FIRESTORE_COLLECTION).onSnapshot(
-          async (snapshot) => {
-            // Falls Firestore beim allerersten Start noch komplett leer ist:
-            if (snapshot.empty && !hasHandledInitialCloudSeed) {
-              hasHandledInitialCloudSeed = true;
-              setSyncStatus('syncing', 'Synchronisiert...');
-              const seedCards = cachedCards.length > 0 ? cachedCards : getStarterMinerals();
-              await writeCardsBatchToFirestore(seedCards);
-              setSyncStatus('cloud-ok', 'Cloud Sync aktiv');
-              return;
-            }
-            hasHandledInitialCloudSeed = true;
-            setSyncStatus('cloud-ok', 'Cloud Sync aktiv');
-
-            // Aktuell angezeigte Karte merken, damit Live-Updates beim Lernen nicht springen
-            const activeCardId = deckIds[currentIndex] || null;
-
-            const cloudCards = [];
-            snapshot.forEach((doc) => {
-              cloudCards.push(normalizeMineral({ id: doc.id, ...doc.data() }));
-            });
-
-            // Neueste Karten zuerst sortieren
-            cloudCards.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-
-            minerals = cloudCards;
-            saveLocalCards(minerals); // Offline-Spiegelung
-            syncDeckOrder(false, activeCardId);
-            updateAllUI();
-          },
-          (error) => {
-            console.error('Firestore onSnapshot Fehler:', error);
-            handleFirestoreError(error);
-
-            // Falls Cache leer war, Starter-Daten lokal bereitstellen
-            if (minerals.length === 0) {
-              minerals = getStarterMinerals();
-              saveLocalCards(minerals);
-              syncDeckOrder(false);
-              updateAllUI();
-            }
+        auth.onAuthStateChanged((user) => {
+          // Bestehenden Echtzeit-Listener sauber beenden
+          if (unsubscribeSnapshot) {
+            unsubscribeSnapshot();
+            unsubscribeSnapshot = null;
           }
-        );
+
+          currentUser = user;
+          hasHandledInitialCloudSeed = false;
+
+          if (user) {
+            // Eingeloggt -> App-Oberfläche anzeigen & persönlichen Cloud-Sync starten
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('main-nav').classList.remove('hidden');
+            document.getElementById('user-account-bar').classList.remove('hidden');
+            document.getElementById('header-user-email').textContent = user.email || 'Angemeldet';
+
+            switchTab(activeTab);
+            startUserCloudSync(user);
+          } else {
+            // Ausgeloggt -> Login-Maske anzeigen & Daten im Arbeitsspeicher leeren
+            isCloudEnabled = false;
+            minerals = [];
+            deckIds = [];
+            currentIndex = 0;
+            isFlipped = false;
+
+            document.getElementById('user-account-bar').classList.add('hidden');
+            document.getElementById('main-nav').classList.add('hidden');
+            document.getElementById('view-study').classList.add('hidden');
+            document.getElementById('view-collection').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+
+            setSyncStatus('logged-out', 'Nicht angemeldet');
+          }
+        });
       } catch (err) {
         console.error('Firebase Initialisierungsfehler:', err);
         isCloudEnabled = false;
         setSyncStatus('local', 'Lokalmodus', 'Firebase konnte nicht gestartet werden: ' + err.message);
-        if (minerals.length === 0) {
-          minerals = getStarterMinerals();
-          saveLocalCards(minerals);
-        }
+        minerals = getStarterMinerals();
         syncDeckOrder(false);
         updateAllUI();
+      }
+    }
+
+    function startUserCloudSync(user) {
+      isCloudEnabled = true;
+      setSyncStatus('syncing', 'Synchronisiert...');
+
+      // Sofort nutzerspezifischen Offline-Cache laden, falls vorhanden
+      const cachedCards = loadLocalCards();
+      if (cachedCards.length > 0) {
+        minerals = cachedCards;
+        syncDeckOrder(false);
+        updateAllUI();
+      }
+
+      const userCol = getUserMineralsCollection();
+      if (!userCol) return;
+
+      unsubscribeSnapshot = userCol.onSnapshot(
+        async (snapshot) => {
+          // Falls dieser Account noch komplett leer ist -> 3 Beispiel-Minerale anlegen
+          if (snapshot.empty && !hasHandledInitialCloudSeed) {
+            hasHandledInitialCloudSeed = true;
+            setSyncStatus('syncing', 'Synchronisiert...');
+            const seedCards = cachedCards.length > 0 ? cachedCards : getStarterMinerals();
+            await writeCardsBatchToFirestore(seedCards);
+            setSyncStatus('cloud-ok', 'Cloud Sync aktiv');
+            return;
+          }
+          hasHandledInitialCloudSeed = true;
+          setSyncStatus('cloud-ok', 'Cloud Sync aktiv');
+
+          const activeCardId = deckIds[currentIndex] || null;
+
+          const cloudCards = [];
+          snapshot.forEach((doc) => {
+            cloudCards.push(normalizeMineral({ id: doc.id, ...doc.data() }));
+          });
+
+          cloudCards.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+          minerals = cloudCards;
+          saveLocalCards(minerals);
+          syncDeckOrder(false, activeCardId);
+          updateAllUI();
+        },
+        (error) => {
+          console.error('Firestore onSnapshot Fehler:', error);
+          handleFirestoreError(error);
+
+          if (minerals.length === 0) {
+            minerals = getStarterMinerals();
+            saveLocalCards(minerals);
+            syncDeckOrder(false);
+            updateAllUI();
+          }
+        }
+      );
+    }
+
+    /**
+     * =========================================================================
+     * AUTHENTIFIZIERUNG (ANMELDEN, REGISTRIEREN, ABMELDEN)
+     * =========================================================================
+     */
+    function switchAuthMode(mode) {
+      authMode = mode;
+      const tabLogin = document.getElementById('auth-tab-login');
+      const tabRegister = document.getElementById('auth-tab-register');
+      const heading = document.getElementById('auth-heading');
+      const submitBtn = document.getElementById('auth-submit-btn');
+      const pwInput = document.getElementById('auth-password');
+
+      document.getElementById('auth-error-box').classList.add('hidden');
+
+      if (mode === 'login') {
+        tabLogin.className = 'py-2 rounded-lg text-xs sm:text-sm font-bold bg-sky-400 text-slate-950 transition-all';
+        tabRegister.className = 'py-2 rounded-lg text-xs sm:text-sm font-bold text-slate-300 hover:text-white transition-all';
+        heading.textContent = 'Beim Mineral-Trainer anmelden';
+        submitBtn.textContent = 'Anmelden';
+        pwInput.setAttribute('autocomplete', 'current-password');
+      } else {
+        tabRegister.className = 'py-2 rounded-lg text-xs sm:text-sm font-bold bg-sky-400 text-slate-950 transition-all';
+        tabLogin.className = 'py-2 rounded-lg text-xs sm:text-sm font-bold text-slate-300 hover:text-white transition-all';
+        heading.textContent = 'Neues Konto erstellen';
+        submitBtn.textContent = 'Konto registrieren';
+        pwInput.setAttribute('autocomplete', 'new-password');
+      }
+    }
+
+    async function handleAuthSubmit(event) {
+      event.preventDefault();
+      if (!auth) return;
+
+      const email = document.getElementById('auth-email').value.trim();
+      const password = document.getElementById('auth-password').value;
+      const errorBox = document.getElementById('auth-error-box');
+      const submitBtn = document.getElementById('auth-submit-btn');
+
+      errorBox.classList.add('hidden');
+      submitBtn.disabled = true;
+      submitBtn.textContent = authMode === 'login' ? 'Wird angemeldet...' : 'Konto wird erstellt...';
+
+      try {
+        if (authMode === 'login') {
+          await auth.signInWithEmailAndPassword(email, password);
+          showToast('Erfolgreich angemeldet!', 'success');
+        } else {
+          await auth.createUserWithEmailAndPassword(email, password);
+          showToast('Konto erstellt und angemeldet!', 'success');
+        }
+        document.getElementById('auth-form').reset();
+      } catch (err) {
+        console.error('Auth-Fehler:', err);
+        errorBox.textContent = translateAuthError(err && err.code ? err.code : '');
+        errorBox.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = authMode === 'login' ? 'Anmelden' : 'Konto registrieren';
+      }
+    }
+
+    async function handleLogout() {
+      if (!auth) return;
+      try {
+        await auth.signOut();
+        resetForm();
+        showToast('Abgemeldet.', 'info');
+      } catch (err) {
+        console.error('Logout-Fehler:', err);
+        showToast('Abmelden fehlgeschlagen.', 'error');
+      }
+    }
+
+    function translateAuthError(code) {
+      switch (code) {
+        case 'auth/invalid-credential':
+        case 'auth/wrong-password':
+        case 'auth/user-not-found':
+          return 'E-Mail-Adresse oder Passwort ist falsch.';
+        case 'auth/email-already-in-use':
+          return 'Für diese E-Mail-Adresse existiert bereits ein Konto. Bitte wechsle auf „Anmelden“.';
+        case 'auth/weak-password':
+          return 'Das Passwort ist zu schwach (mindestens 6 Zeichen erforderlich).';
+        case 'auth/invalid-email':
+          return 'Bitte gib eine gültige E-Mail-Adresse ein.';
+        case 'auth/too-many-requests':
+          return 'Zu viele Fehlversuche. Bitte warte einen kurzen Moment und versuche es erneut.';
+        default:
+          return 'Anmeldung fehlgeschlagen. Bitte prüfe deine Eingaben und Internetverbindung.';
       }
     }
 
@@ -1187,7 +1430,7 @@
         setSyncStatus(
           'local',
           'Lokalmodus',
-          'Zugriff auf Firestore verweigert (permission-denied): Der 30-Tage-Testmodus ist abgelaufen oder die Sicherheitsregeln blockieren den Zugriff.'
+          'Zugriff auf Firestore verweigert (permission-denied): Bitte veröffentliche in Firebase unter „Firestore → Regeln“ die Account-Regel für users/{userId}/minerals.'
         );
       } else if (code === 'not-found') {
         setSyncStatus(
@@ -1220,10 +1463,11 @@
       syncDeckOrder(false, normalized.id);
       updateAllUI();
 
-      if (isCloudEnabled && db) {
+      const userCol = getUserMineralsCollection();
+      if (isCloudEnabled && userCol) {
         try {
           setSyncStatus('syncing', 'Synchronisiert...');
-          await db.collection(FIRESTORE_COLLECTION).doc(normalized.id).set(normalized);
+          await userCol.doc(normalized.id).set(normalized);
           setSyncStatus('cloud-ok', 'Cloud Sync aktiv');
         } catch (err) {
           console.error('Firestore Speichern fehlgeschlagen:', err);
@@ -1244,10 +1488,11 @@
       card.updatedAt = Date.now();
       saveLocalCards(minerals);
 
-      if (isCloudEnabled && db) {
+      const userCol = getUserMineralsCollection();
+      if (isCloudEnabled && userCol) {
         try {
           setSyncStatus('syncing', 'Synchronisiert...');
-          await db.collection(FIRESTORE_COLLECTION).doc(cardId).update({
+          await userCol.doc(cardId).update({
             status: newStatus,
             updatedAt: card.updatedAt
           });
@@ -1268,10 +1513,11 @@
       syncDeckOrder(false);
       updateAllUI();
 
-      if (isCloudEnabled && db) {
+      const userCol = getUserMineralsCollection();
+      if (isCloudEnabled && userCol) {
         try {
           setSyncStatus('syncing', 'Synchronisiert...');
-          await db.collection(FIRESTORE_COLLECTION).doc(cardId).delete();
+          await userCol.doc(cardId).delete();
           setSyncStatus('cloud-ok', 'Cloud Sync aktiv');
         } catch (err) {
           console.error('Löschen in Firestore fehlgeschlagen:', err);
@@ -1285,14 +1531,15 @@
      * Schreibt mehrere Karten per Firestore WriteBatch (z. B. beim JSON-Import oder Erst-Seed)
      */
     async function writeCardsBatchToFirestore(cardsList, replaceExisting = false) {
-      if (!isCloudEnabled || !db) return;
+      const userCol = getUserMineralsCollection();
+      if (!isCloudEnabled || !userCol) return;
 
       try {
         setSyncStatus('syncing', 'Synchronisiert...');
 
         // Firestore erlaubt max. 500 Operationen pro Batch -> in 400er-Blöcke aufteilen
         if (replaceExisting) {
-          const existingSnap = await db.collection(FIRESTORE_COLLECTION).get();
+          const existingSnap = await userCol.get();
           const deleteDocs = existingSnap.docs;
           for (let i = 0; i < deleteDocs.length; i += 400) {
             const delBatch = db.batch();
@@ -1305,7 +1552,7 @@
           const batch = db.batch();
           cardsList.slice(i, i + 400).forEach((rawCard) => {
             const card = normalizeMineral(rawCard);
-            const ref = db.collection(FIRESTORE_COLLECTION).doc(card.id);
+            const ref = userCol.doc(card.id);
             batch.set(ref, card);
           });
           await batch.commit();
@@ -1320,11 +1567,15 @@
     }
 
     /**
-     * LocalStorage Hilfsfunktionen
+     * LocalStorage Hilfsfunktionen (pro Account getrennt)
      */
+    function getUserStorageKey() {
+      return currentUser ? `${LOCAL_STORAGE_KEY}_${currentUser.uid}` : LOCAL_STORAGE_KEY;
+    }
+
     function loadLocalCards() {
       try {
-        const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+        const raw = localStorage.getItem(getUserStorageKey());
         if (!raw) return [];
         const parsed = JSON.parse(raw);
         return Array.isArray(parsed) ? parsed.map(normalizeMineral) : [];
@@ -1336,7 +1587,7 @@
 
     function saveLocalCards(cardsList) {
       try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cardsList));
+        localStorage.setItem(getUserStorageKey(), JSON.stringify(cardsList));
       } catch (err) {
         console.error('localStorage voll:', err);
         showToast('Lokaler Browser-Speicher ist voll. Bitte JSON-Backup sichern!', 'error');
@@ -1387,6 +1638,8 @@
      */
     function switchTab(tabName) {
       activeTab = tabName;
+      if (isFirebaseConfigured() && !currentUser) return;
+
       const viewStudy = document.getElementById('view-study');
       const viewCollection = document.getElementById('view-collection');
       const btnStudy = document.getElementById('tab-btn-study');
